@@ -17,3 +17,26 @@ uvicorn app.main:app --reload
 - `POST /minesweeper/suggest`：根据扫雷棋盘给出下一步建议
 - `POST /chess/suggest`：根据国际象棋局面给出下一步建议
 - `POST /chess/opponent-move`：根据当前局面，作为对手给出下一步落位
+
+## 知识库元数据
+
+知识库数据存放在 `app/knowledge_metadata.json`，由 `KnowledgeParser` 工具类解析。
+
+JSON 结构说明：
+
+```json
+{
+  "version": "1.0",
+  "knowledge": [
+    {
+      "id": "唯一字符串ID",
+      "game": "minesweeper|chess",
+      "title": "知识标题",
+      "tags": ["标签1", "标签2"],
+      "content": "实际用于检索和回复的知识文本"
+    }
+  ]
+}
+```
+
+其中 `id` 和 `content` 为解析所需字段，其他字段用于元数据扩展和管理。
