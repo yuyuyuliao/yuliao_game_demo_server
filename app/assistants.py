@@ -7,6 +7,7 @@ MINESWEEPER_UNKNOWN_CELL_MARKERS = {"?", "X", "x", -1, "U", "u"}
 
 
 def _fen_side_to_move(board_fen: str) -> Optional[str]:
+    """从 FEN 字符串解析当前走子方，返回 white/black。"""
     fields = board_fen.split()
     if len(fields) >= 2 and fields[1] in {"w", "b"}:
         return "white" if fields[1] == "w" else "black"
@@ -14,15 +15,20 @@ def _fen_side_to_move(board_fen: str) -> Optional[str]:
 
 
 class AIAssistantBase(ABC):
+    """AI 助手基类：统一管理 system 提示词与模型名称。"""
+
     def __init__(self, *, system_prompt: str = "", model_name: str = "demo-model") -> None:
         self.system_prompt = system_prompt
         self.model_name = model_name
 
     def agent_config(self) -> dict[str, str]:
+        """返回当前助手配置，便于作为 agent 元数据输出。"""
         return {"system_prompt": self.system_prompt, "model_name": self.model_name}
 
 
 class ChatAssistant(AIAssistantBase):
+    """聊天助手：结合历史聊天与知识检索生成回复。"""
+
     def __init__(
         self,
         *,
@@ -34,6 +40,7 @@ class ChatAssistant(AIAssistantBase):
         self._knowledge_search = knowledge_search
 
     def reply(self, history: list[str], message: str) -> dict[str, str]:
+        """根据聊天历史和用户输入生成日常对话回复。"""
         memories = "；".join(history) if history else "我们还没有历史聊天记录。"
         tips = []
         if self._knowledge_search is not None:
@@ -48,7 +55,10 @@ class ChatAssistant(AIAssistantBase):
 
 
 class MinesweeperAssistant(AIAssistantBase):
+    """扫雷助手：根据棋盘未知格给出下一步建议。"""
+
     def suggest(self, board: list[list[Any]]) -> dict[str, Any]:
+        """返回推荐动作，优先打开第一个未知格。"""
         unknown = []
         for r, row in enumerate(board):
             for c, value in enumerate(row):
@@ -68,6 +78,8 @@ class MinesweeperAssistant(AIAssistantBase):
 
 
 class ChessSuggestAssistant(AIAssistantBase):
+    """下棋助手：给玩家提供一步简化的走棋建议。"""
+
     def __init__(
         self,
         *,
@@ -79,6 +91,7 @@ class ChessSuggestAssistant(AIAssistantBase):
         self._knowledge_search = knowledge_search
 
     def suggest(self, board_fen: str, side_to_move: Optional[str] = None) -> dict[str, str]:
+        """根据走子方给出开局建议，并补充简短原因。"""
         side = (side_to_move or "").lower()
         if side not in {"white", "black"}:
             side = _fen_side_to_move(board_fen) or "white"
@@ -90,7 +103,10 @@ class ChessSuggestAssistant(AIAssistantBase):
 
 
 class ChessOpponentAssistant(AIAssistantBase):
+    """下棋对手助手：模拟对手一方给出应对走法。"""
+
     def suggest(self, board_fen: str, player_side: Optional[str] = None) -> dict[str, str]:
+        """根据玩家方位推导对手方并返回对应默认走法。"""
         side = (player_side or "").lower()
         if side not in {"white", "black"}:
             side = _fen_side_to_move(board_fen) or "white"
