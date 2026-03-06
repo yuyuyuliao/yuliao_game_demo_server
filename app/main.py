@@ -8,6 +8,8 @@ from typing import Any, Optional
 from fastapi import FastAPI
 from pydantic import BaseModel, Field
 
+from app.knowledge_parser import KnowledgeParser
+
 try:
     import chromadb
 except Exception:  # pragma: no cover - fallback when chromadb is unavailable
@@ -38,18 +40,13 @@ def _init_db() -> None:
 
 class KnowledgeStore:
     def __init__(self) -> None:
-        self._docs = {
-            "minesweeper-1": "扫雷技巧：如果一个数字周围已标记雷数量等于该数字，其余未知格都是安全格。",
-            "minesweeper-2": "扫雷技巧：如果一个数字周围未知格数量等于该数字减去已标记雷数量，未知格都是雷。",
-            "chess-1": "国际象棋开局建议：白方常见第一步是e2e4或d2d4以控制中心。",
-            "chess-2": "国际象棋建议：发展轻子并尽早王车易位，避免重复走同一枚子。",
-        }
+        self._docs = KnowledgeParser().load_documents()
         self._collection = None
         if chromadb is not None:
             try:
                 client = chromadb.PersistentClient(path=CHROMA_PATH)
                 self._collection = client.get_or_create_collection("game_knowledge")
-                if self._collection.count() == 0:
+                if self._collection.count() == 0 and self._docs:
                     ids = list(self._docs.keys())
                     docs = [self._docs[i] for i in ids]
                     self._collection.add(ids=ids, documents=docs)
