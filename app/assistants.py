@@ -6,6 +6,13 @@ from typing import Any, Callable, Optional
 MINESWEEPER_UNKNOWN_CELL_MARKERS = {"?", "X", "x", -1, "U", "u"}
 
 
+def _fen_side_to_move(board_fen: str) -> Optional[str]:
+    fields = board_fen.split()
+    if len(fields) >= 2 and fields[1] in {"w", "b"}:
+        return "white" if fields[1] == "w" else "black"
+    return None
+
+
 class AIAssistantBase(ABC):
     def __init__(self, *, system_prompt: str = "", model_name: str = "demo-model") -> None:
         self.system_prompt = system_prompt
@@ -71,9 +78,10 @@ class ChessSuggestAssistant(AIAssistantBase):
         super().__init__(system_prompt=system_prompt, model_name=model_name)
         self._knowledge_search = knowledge_search
 
-    def suggest(self, board_fen: str, side_to_move: Optional[str] = "white") -> dict[str, str]:
-        _ = board_fen
-        side = (side_to_move or "white").lower()
+    def suggest(self, board_fen: str, side_to_move: Optional[str] = None) -> dict[str, str]:
+        side = (side_to_move or "").lower()
+        if side not in {"white", "black"}:
+            side = _fen_side_to_move(board_fen) or "white"
         move = "e2e4" if side == "white" else "e7e5"
         tips = []
         if self._knowledge_search is not None:
@@ -82,9 +90,10 @@ class ChessSuggestAssistant(AIAssistantBase):
 
 
 class ChessOpponentAssistant(AIAssistantBase):
-    def suggest(self, board_fen: str, player_side: str) -> dict[str, str]:
-        _ = board_fen
-        side = player_side.lower()
+    def suggest(self, board_fen: str, player_side: Optional[str] = None) -> dict[str, str]:
+        side = (player_side or "").lower()
+        if side not in {"white", "black"}:
+            side = _fen_side_to_move(board_fen) or "white"
         opponent_side = "black" if side == "white" else "white"
         move = "e7e5" if opponent_side == "black" else "e2e4"
         return {"opponent_side": opponent_side, "move": move}

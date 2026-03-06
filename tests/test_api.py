@@ -80,7 +80,26 @@ def test_assistants_are_independent_classes_with_config():
     chess = ChessSuggestAssistant(system_prompt="chess prompt", model_name="chess-model")
     opponent = ChessOpponentAssistant(system_prompt="op prompt", model_name="op-model")
 
-    for assistant in [chat, minesweeper, chess, opponent]:
+    expected_configs = {
+        chat: {"system_prompt": "chat prompt", "model_name": "chat-model"},
+        minesweeper: {"system_prompt": "ms prompt", "model_name": "ms-model"},
+        chess: {"system_prompt": "chess prompt", "model_name": "chess-model"},
+        opponent: {"system_prompt": "op prompt", "model_name": "op-model"},
+    }
+
+    for assistant, expected in expected_configs.items():
         assert isinstance(assistant, AIAssistantBase)
-        assert assistant.agent_config()["system_prompt"]
-        assert assistant.agent_config()["model_name"]
+        assert assistant.agent_config() == expected
+
+
+def test_chess_assistants_can_fallback_to_fen_side():
+    chess = ChessSuggestAssistant()
+    fen_black = "rnbqkbnr/pppppppp/8/8/8/8/PPPPPPPP/RNBQKBNR b KQkq - 0 1"
+    suggest = chess.suggest(fen_black, side_to_move="")
+    assert suggest["move"] == "e7e5"
+    explicit = chess.suggest(fen_black, side_to_move="white")
+    assert explicit["move"] == "e2e4"
+
+    opponent = ChessOpponentAssistant()
+    move = opponent.suggest(fen_black, player_side="")
+    assert move["opponent_side"] == "white"
