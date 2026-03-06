@@ -1,7 +1,7 @@
 from __future__ import annotations
 
 from contextlib import asynccontextmanager
-from datetime import datetime, timedelta
+from datetime import datetime
 import sqlite3
 from pathlib import Path
 from typing import Any, Optional
@@ -34,6 +34,18 @@ FARM_DEFAULT_FERTILITY = 100.0
 FARM_DEFAULT_TEMPERATURE = 22.0
 WATER_DECAY_PER_HOUR = 3.0
 FERTILITY_DECAY_PER_HOUR = 1.5
+LOW_WATER_THRESHOLD = 30.0
+LOW_FERTILITY_THRESHOLD = 30.0
+MIN_GROWTH_TEMPERATURE = 10.0
+MAX_GROWTH_TEMPERATURE = 35.0
+LOW_RESOURCE_GROWTH_FACTOR = 0.5
+TEMPERATURE_GROWTH_FACTOR = 0.8
+TEMPERATURE_CHANGE_PER_HOUR = 0.2
+TEMPERATURE_MIN = -10.0
+TEMPERATURE_MAX = 45.0
+STAGE_HALF_RATIO = 0.5
+STAGE_MATURE_RATIO = 1.0
+STAGE_WITHER_RATIO = 1.5
 MATURE_STAGE = "完全成熟"
 
 
@@ -240,7 +252,11 @@ def _apply_land_decay(conn: sqlite3.Connection, instance_row: sqlite3.Row) -> sq
 
     water = max(0.0, instance_row["water"] - elapsed_hours * WATER_DECAY_PER_HOUR)
     fertility = max(0.0, instance_row["fertility"] - elapsed_hours * FERTILITY_DECAY_PER_HOUR)
-    temperature = min(45.0, max(-10.0, instance_row["temperature"] + elapsed_hours * 0.2))
+    # 温度按小时平滑变化，并限制在可接受区间内避免出现极端值。
+    temperature = min(
+        TEMPERATURE_MAX,
+        max(TEMPERATURE_MIN, instance_row["temperature"] + elapsed_hours * TEMPERATURE_CHANGE_PER_HOUR),
+    )
 
     conn.execute(
         """
@@ -288,17 +304,20 @@ def _calc_growth_stage(instance_row: sqlite3.Row) -> tuple[str, float]:
     planted_at = _parse_dt(instance_row["planted_at"])
     elapsed_seconds = max(0.0, (datetime.now() - planted_at).total_seconds())
     growth_speed = instance_row["growth_multiplier"]
-    if instance_row["water"] < 30 or instance_row["fertility"] < 30:
-        growth_speed *= 0.5
-    if instance_row["temperature"] < 10 or instance_row["temperature"] > 35:
-        growth_speed *= 0.8
+    if instance_row["water"] < LOW_WATER_THRESHOLD or instance_row["fertility"] < LOW_FERTILITY_THRESHOLD:
+        growth_speed *= LOW_RESOURCE_GROWTH_FACTOR
+    if (
+        instance_row["temperature"] < MIN_GROWTH_TEMPERATURE
+        or instance_row["temperature"] > MAX_GROWTH_TEMPERATURE
+    ):
+        growth_speed *= TEMPERATURE_GROWTH_FACTOR
     effective_seconds = elapsed_seconds * growth_speed
     growth_seconds = instance_row["growth_seconds"]
-    if effective_seconds < growth_seconds / 2:
+    if effective_seconds < growth_seconds * STAGE_HALF_RATIO:
         return "刚种下", effective_seconds
-    if effective_seconds < growth_seconds:
+    if effective_seconds < growth_seconds * STAGE_MATURE_RATIO:
         return "长到一半", effective_seconds
-    if effective_seconds < growth_seconds * 1.5:
+    if effective_seconds < growth_seconds * STAGE_WITHER_RATIO:
         return MATURE_STAGE, effective_seconds
     return "枯萎", effective_seconds
 
