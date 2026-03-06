@@ -13,7 +13,10 @@ class KnowledgeParser:
         try:
             with self._metadata_path.open("r", encoding="utf-8") as f:
                 payload = json.load(f)
-        except Exception:
+        except (FileNotFoundError, OSError, json.JSONDecodeError):
+            return {}
+
+        if not isinstance(payload, dict):
             return {}
 
         items = payload.get("knowledge", [])
