@@ -7,6 +7,12 @@ from typing import Any, Optional
 
 from fastapi import FastAPI
 from pydantic import BaseModel, Field
+from app.assistants import (
+    ChatAssistant,
+    ChessOpponentAssistant,
+    ChessSuggestAssistant,
+    MinesweeperAssistant,
+)
 
 try:
     import chromadb
@@ -19,7 +25,6 @@ DATA_DIR = APP_DIR / "data"
 DATA_DIR.mkdir(parents=True, exist_ok=True)
 DB_PATH = DATA_DIR / "chat.db"
 CHROMA_PATH = str(DATA_DIR / "chroma")
-MINESWEEPER_UNKNOWN_CELL_MARKERS = {"?", "X", "x", -1, "U", "u"}
 
 def _init_db() -> None:
     with sqlite3.connect(DB_PATH) as conn:
@@ -75,6 +80,24 @@ class KnowledgeStore:
 
 
 knowledge_store = KnowledgeStore()
+chat_assistant = ChatAssistant(
+    system_prompt="你是一个友好的聊天助手。",
+    model_name="chat-model-v1",
+    knowledge_search=knowledge_store.search,
+)
+minesweeper_assistant = MinesweeperAssistant(
+    system_prompt="你是扫雷助手，请输出安全建议。",
+    model_name="minesweeper-model-v1",
+)
+chess_assistant = ChessSuggestAssistant(
+    system_prompt="你是下棋助手，请给出简洁开局建议。",
+    model_name="chess-model-v1",
+    knowledge_search=knowledge_store.search,
+)
+chess_opponent_assistant = ChessOpponentAssistant(
+    system_prompt="你是下棋对手 AI，请根据局面给出对手走法。",
+    model_name="chess-opponent-model-v1",
+)
 
 
 class ChatRecordRequest(BaseModel):
@@ -135,53 +158,19 @@ def daily_chat(payload: DailyChatRequest) -> dict[str, str]:
         ).fetchall()
 
     history = [r[0] for r in rows][::-1]
-    memories = "；".join(history) if history else "我们还没有历史聊天记录。"
-    tips = knowledge_store.search(payload.message, n_results=1)
-    tip_text = tips[0] if tips else "保持轻松交流。"
-
-    response = (
-        f"我记得你最近说过：{memories}。"
-        f"你刚才说：{payload.message}。"
-        f"给你一个相关建议：{tip_text}"
-    )
-    return {"response": response}
-
-
-def _unknown_cells(board: list[list[Any]]) -> list[tuple[int, int]]:
-    unknown = []
-    for r, row in enumerate(board):
-        for c, value in enumerate(row):
-            if value in MINESWEEPER_UNKNOWN_CELL_MARKERS:
-                unknown.append((r, c))
-    return unknown
+    return chat_assistant.reply(history, payload.message)
 
 
 @app.post("/minesweeper/suggest")
 def minesweeper_suggest(payload: MinesweeperRequest) -> dict[str, Any]:
-    board = payload.board
-    unknown = _unknown_cells(board)
-    if not unknown:
-        return {"action": "done", "reason": "no unknown cells"}
-    row, col = unknown[0]
-    return {
-        "action": "open",
-        "row": row,
-        "col": col,
-        "reason": "默认选择第一个未知格，可结合数字约束进一步推理",
-    }
+    return minesweeper_assistant.suggest(payload.board)
 
 
 @app.post("/chess/suggest")
 def chess_suggest(payload: ChessRequest) -> dict[str, str]:
-    side = (payload.side_to_move or "white").lower()
-    move = "e2e4" if side == "white" else "e7e5"
-    tips = knowledge_store.search("国际象棋 开局", n_results=1)
-    return {"move": move, "reason": tips[0] if tips else "控制中心并发展子力"}
+    return chess_assistant.suggest(payload.board_fen, payload.side_to_move)
 
 
 @app.post("/chess/opponent-move")
 def chess_opponent_move(payload: OpponentMoveRequest) -> dict[str, str]:
-    side = payload.player_side.lower()
-    opponent_side = "black" if side == "white" else "white"
-    move = "e7e5" if opponent_side == "black" else "e2e4"
-    return {"opponent_side": opponent_side, "move": move}
+    return chess_opponent_assistant.suggest(payload.board_fen, payload.player_side)
