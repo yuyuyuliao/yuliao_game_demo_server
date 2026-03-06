@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+from contextlib import asynccontextmanager
 import sqlite3
 from pathlib import Path
 from typing import Any, Optional
@@ -18,9 +19,7 @@ DATA_DIR = APP_DIR / "data"
 DATA_DIR.mkdir(parents=True, exist_ok=True)
 DB_PATH = DATA_DIR / "chat.db"
 CHROMA_PATH = str(DATA_DIR / "chroma")
-
-app = FastAPI(title="yuliao game demo server")
-
+MINESWEEPER_UNKNOWN_CELL_MARKERS = {"?", "X", "x", -1, "U", "u"}
 
 def _init_db() -> None:
     with sqlite3.connect(DB_PATH) as conn:
@@ -102,9 +101,13 @@ class OpponentMoveRequest(BaseModel):
     player_side: str
 
 
-@app.on_event("startup")
-def startup() -> None:
+@asynccontextmanager
+async def lifespan(_: FastAPI):
     _init_db()
+    yield
+
+
+app = FastAPI(title="yuliao game demo server", lifespan=lifespan)
 
 
 @app.get("/health")
@@ -114,7 +117,6 @@ def health() -> dict[str, str]:
 
 @app.post("/chat/record")
 def record_chat(payload: ChatRecordRequest) -> dict[str, str]:
-    _init_db()
     with sqlite3.connect(DB_PATH) as conn:
         conn.execute(
             "INSERT INTO chat_history (player_id, text) VALUES (?, ?)",
@@ -126,7 +128,6 @@ def record_chat(payload: ChatRecordRequest) -> dict[str, str]:
 
 @app.post("/chat/daily")
 def daily_chat(payload: DailyChatRequest) -> dict[str, str]:
-    _init_db()
     with sqlite3.connect(DB_PATH) as conn:
         rows = conn.execute(
             "SELECT text FROM chat_history WHERE player_id=? ORDER BY id DESC LIMIT 5",
@@ -147,11 +148,10 @@ def daily_chat(payload: DailyChatRequest) -> dict[str, str]:
 
 
 def _unknown_cells(board: list[list[Any]]) -> list[tuple[int, int]]:
-    unknown_values = {"?", "X", "x", -1, "U", "u"}
     unknown = []
     for r, row in enumerate(board):
         for c, value in enumerate(row):
-            if value in unknown_values:
+            if value in MINESWEEPER_UNKNOWN_CELL_MARKERS:
                 unknown.append((r, c))
     return unknown
 

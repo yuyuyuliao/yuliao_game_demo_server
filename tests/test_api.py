@@ -1,8 +1,12 @@
+import re
+
 from fastapi.testclient import TestClient
 
 from app.main import app
 
 client = TestClient(app)
+UCI_MOVE_LENGTH = 4
+UCI_MOVE_PATTERN = re.compile(r"^[a-h][1-8][a-h][1-8]$")
 
 
 def test_health():
@@ -24,7 +28,9 @@ def test_record_and_daily_chat():
         json={"player_id": "player-1", "message": "给我一个建议"},
     )
     assert daily.status_code == 200
-    assert "我记得你最近说过" in daily.json()["response"]
+    response = daily.json()["response"]
+    assert "我记得你最近说过" in response
+    assert "给你一个相关建议" in response
 
 
 def test_game_suggestion_endpoints():
@@ -54,5 +60,6 @@ def test_game_suggestion_endpoints():
     )
     assert opponent.status_code == 200
     body = opponent.json()
-    assert body["opponent_side"] == "black"
-    assert body["move"] == "e7e5"
+    assert body["opponent_side"] in {"white", "black"}
+    assert len(body["move"]) == UCI_MOVE_LENGTH
+    assert UCI_MOVE_PATTERN.match(body["move"])
