@@ -1,0 +1,33 @@
+{
+  "version": "1.0",
+  "knowledge": [
+    {
+      "id": "minesweeper-1",
+      "game": "minesweeper",
+      "title": "未知格安全判断",
+      "tags": ["扫雷", "推理"],
+      "content": "扫雷技巧：如果一个数字周围已标记雷数量等于该数字，其余未知格都是安全格。"
+    },
+    {
+      "id": "minesweeper-2",
+      "game": "minesweeper",
+      "title": "未知格雷区判断",
+      "tags": ["扫雷", "推理"],
+      "content": "扫雷技巧：如果一个数字周围未知格数量等于该数字减去已标记雷数量，未知格都是雷。"
+    },
+    {
+      "id": "chess-1",
+      "game": "chess",
+      "title": "开局中心控制",
+      "tags": ["国际象棋", "开局"],
+      "content": "国际象棋开局建议：白方常见第一步是e2e4或d2d4以控制中心。"
+    },
+    {
+      "id": "chess-2",
+      "game": "chess",
+      "title": "开局发展原则",
+      "tags": ["国际象棋", "开局"],
+      "content": "国际象棋建议：发展轻子并尽早王车易位，避免重复走同一枚子。"
+    }
+  ]
+}

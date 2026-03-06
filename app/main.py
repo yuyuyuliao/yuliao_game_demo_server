@@ -14,6 +14,8 @@ from app.assistants import (
     MinesweeperAssistant,
 )
 
+from app.knowledge_parser import KnowledgeParser
+
 try:
     import chromadb
 except Exception:  # pragma: no cover - fallback when chromadb is unavailable
@@ -27,7 +29,7 @@ DB_PATH = DATA_DIR / "chat.db"
 CHROMA_PATH = str(DATA_DIR / "chroma")
 
 def _init_db() -> None:
-    """初始化本地 SQLite 表，用于保存玩家聊天记录。"""
+    """初始化聊天记录表。"""
     with sqlite3.connect(DB_PATH) as conn:
         conn.execute(
             """
@@ -43,22 +45,17 @@ def _init_db() -> None:
 
 
 class KnowledgeStore:
-    """游戏知识库封装：优先使用 Chroma，失败时回退关键字匹配。"""
+    """知识检索封装：优先使用 Chroma，失败时回退到关键词匹配。"""
 
     def __init__(self) -> None:
-        """准备内置知识并初始化向量库集合。"""
-        self._docs = {
-            "minesweeper-1": "扫雷技巧：如果一个数字周围已标记雷数量等于该数字，其余未知格都是安全格。",
-            "minesweeper-2": "扫雷技巧：如果一个数字周围未知格数量等于该数字减去已标记雷数量，未知格都是雷。",
-            "chess-1": "国际象棋开局建议：白方常见第一步是e2e4或d2d4以控制中心。",
-            "chess-2": "国际象棋建议：发展轻子并尽早王车易位，避免重复走同一枚子。",
-        }
+        """加载知识文档并尝试初始化向量检索集合。"""
+        self._docs = KnowledgeParser().load_documents()
         self._collection = None
         if chromadb is not None:
             try:
                 client = chromadb.PersistentClient(path=CHROMA_PATH)
                 self._collection = client.get_or_create_collection("game_knowledge")
-                if self._collection.count() == 0:
+                if self._collection.count() == 0 and self._docs:
                     ids = list(self._docs.keys())
                     docs = [self._docs[i] for i in ids]
                     self._collection.add(ids=ids, documents=docs)
@@ -66,7 +63,7 @@ class KnowledgeStore:
                 self._collection = None
 
     def search(self, query: str, n_results: int = 2) -> list[str]:
-        """检索与查询最相关的知识文本。"""
+        """根据查询语句返回最相关的知识文本。"""
         if self._collection is not None:
             try:
                 result = self._collection.query(query_texts=[query], n_results=n_results)
@@ -106,34 +103,34 @@ chess_opponent_assistant = ChessOpponentAssistant(
 
 
 class ChatRecordRequest(BaseModel):
-    """聊天记录写入请求。"""
+    """聊天记录写入请求体。"""
 
     player_id: str = Field(min_length=1)
     text: str = Field(min_length=1)
 
 
 class DailyChatRequest(BaseModel):
-    """日常聊天请求。"""
+    """日常聊天请求体，包含玩家ID和当前消息。"""
 
     player_id: str = Field(min_length=1)
     message: str = Field(min_length=1)
 
 
 class MinesweeperRequest(BaseModel):
-    """扫雷建议请求。"""
+    """扫雷建议请求体，board 为二维棋盘。"""
 
     board: list[list[Any]]
 
 
 class ChessRequest(BaseModel):
-    """下棋建议请求。"""
+    """国际象棋建议请求体。"""
 
     board_fen: str
     side_to_move: Optional[str] = "white"
 
 
 class OpponentMoveRequest(BaseModel):
-    """下棋对手落子请求。"""
+    """国际象棋对手落子请求体。"""
 
     board_fen: str
     player_side: str
@@ -157,7 +154,7 @@ def health() -> dict[str, str]:
 
 @app.post("/chat/record")
 def record_chat(payload: ChatRecordRequest) -> dict[str, str]:
-    """写入一条玩家聊天文本。"""
+    """写入玩家聊天记录到 SQLite。"""
     with sqlite3.connect(DB_PATH) as conn:
         conn.execute(
             "INSERT INTO chat_history (player_id, text) VALUES (?, ?)",
@@ -169,7 +166,7 @@ def record_chat(payload: ChatRecordRequest) -> dict[str, str]:
 
 @app.post("/chat/daily")
 def daily_chat(payload: DailyChatRequest) -> dict[str, str]:
-    """读取最近聊天并委托聊天助手生成回复。"""
+    """结合历史聊天与知识库返回日常回复。"""
     with sqlite3.connect(DB_PATH) as conn:
         rows = conn.execute(
             "SELECT text FROM chat_history WHERE player_id=? ORDER BY id DESC LIMIT 5",
@@ -177,22 +174,57 @@ def daily_chat(payload: DailyChatRequest) -> dict[str, str]:
         ).fetchall()
 
     history = [r[0] for r in rows][::-1]
-    return chat_assistant.reply(history, payload.message)
+    memories = "；".join(history) if history else "我们还没有历史聊天记录。"
+    tips = knowledge_store.search(payload.message, n_results=1)
+    tip_text = tips[0] if tips else "保持轻松交流。"
+
+    response = (
+        f"我记得你最近说过：{memories}。"
+        f"你刚才说：{payload.message}。"
+        f"给你一个相关建议：{tip_text}"
+    )
+    return {"response": response}
+
+
+def _unknown_cells(board: list[list[Any]]) -> list[tuple[int, int]]:
+    """提取扫雷棋盘中的未知格坐标。"""
+    unknown = []
+    for r, row in enumerate(board):
+        for c, value in enumerate(row):
+            if value in MINESWEEPER_UNKNOWN_CELL_MARKERS:
+                unknown.append((r, c))
+    return unknown
 
 
 @app.post("/minesweeper/suggest")
 def minesweeper_suggest(payload: MinesweeperRequest) -> dict[str, Any]:
-    """调用扫雷助手生成下一步建议。"""
-    return minesweeper_assistant.suggest(payload.board)
+    """给出扫雷下一步建议。"""
+    board = payload.board
+    unknown = _unknown_cells(board)
+    if not unknown:
+        return {"action": "done", "reason": "no unknown cells"}
+    row, col = unknown[0]
+    return {
+        "action": "open",
+        "row": row,
+        "col": col,
+        "reason": "默认选择第一个未知格，可结合数字约束进一步推理",
+    }
 
 
 @app.post("/chess/suggest")
 def chess_suggest(payload: ChessRequest) -> dict[str, str]:
-    """调用下棋助手生成建议走法。"""
-    return chess_assistant.suggest(payload.board_fen, payload.side_to_move)
+    """给出国际象棋建议走法。"""
+    side = (payload.side_to_move or "white").lower()
+    move = "e2e4" if side == "white" else "e7e5"
+    tips = knowledge_store.search("国际象棋 开局", n_results=1)
+    return {"move": move, "reason": tips[0] if tips else "控制中心并发展子力"}
 
 
 @app.post("/chess/opponent-move")
 def chess_opponent_move(payload: OpponentMoveRequest) -> dict[str, str]:
-    """调用对手助手生成对手应对走法。"""
-    return chess_opponent_assistant.suggest(payload.board_fen, payload.player_side)
+    """模拟对手在当前局面下的下一步落子。"""
+    side = payload.player_side.lower()
+    opponent_side = "black" if side == "white" else "white"
+    move = "e7e5" if opponent_side == "black" else "e2e4"
+    return {"opponent_side": opponent_side, "move": move}
