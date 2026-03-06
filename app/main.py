@@ -7,6 +7,12 @@ from typing import Any, Optional
 
 from fastapi import FastAPI
 from pydantic import BaseModel, Field
+from app.assistants import (
+    ChatAssistant,
+    ChessOpponentAssistant,
+    ChessSuggestAssistant,
+    MinesweeperAssistant,
+)
 
 from app.knowledge_parser import KnowledgeParser
 
@@ -21,7 +27,6 @@ DATA_DIR = APP_DIR / "data"
 DATA_DIR.mkdir(parents=True, exist_ok=True)
 DB_PATH = DATA_DIR / "chat.db"
 CHROMA_PATH = str(DATA_DIR / "chroma")
-MINESWEEPER_UNKNOWN_CELL_MARKERS = {"?", "X", "x", -1, "U", "u"}
 
 def _init_db() -> None:
     """初始化聊天记录表。"""
@@ -77,6 +82,24 @@ class KnowledgeStore:
 
 
 knowledge_store = KnowledgeStore()
+chat_assistant = ChatAssistant(
+    system_prompt="你是一个友好的聊天助手。",
+    model_name="chat-model-v1",
+    knowledge_search=knowledge_store.search,
+)
+minesweeper_assistant = MinesweeperAssistant(
+    system_prompt="你是扫雷助手，请输出安全建议。",
+    model_name="minesweeper-model-v1",
+)
+chess_assistant = ChessSuggestAssistant(
+    system_prompt="你是下棋助手，请给出简洁开局建议。",
+    model_name="chess-model-v1",
+    knowledge_search=knowledge_store.search,
+)
+chess_opponent_assistant = ChessOpponentAssistant(
+    system_prompt="你是下棋对手 AI，请根据局面给出对手走法。",
+    model_name="chess-opponent-model-v1",
+)
 
 
 class ChatRecordRequest(BaseModel):

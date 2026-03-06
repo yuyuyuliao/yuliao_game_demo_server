@@ -2,7 +2,16 @@ import re
 
 from fastapi.testclient import TestClient
 
-from app.main import app
+from app.assistants import (
+    AIAssistantBase,
+    ChatAssistant,
+    ChessOpponentAssistant,
+    ChessSuggestAssistant,
+    MinesweeperAssistant,
+)
+from app.main import _init_db, app
+
+_init_db()
 
 client = TestClient(app)
 UCI_MOVE_LENGTH = 4
@@ -63,3 +72,34 @@ def test_game_suggestion_endpoints():
     assert body["opponent_side"] in {"white", "black"}
     assert len(body["move"]) == UCI_MOVE_LENGTH
     assert UCI_MOVE_PATTERN.match(body["move"])
+
+
+def test_assistants_are_independent_classes_with_config():
+    chat = ChatAssistant(system_prompt="chat prompt", model_name="chat-model")
+    minesweeper = MinesweeperAssistant(system_prompt="ms prompt", model_name="ms-model")
+    chess = ChessSuggestAssistant(system_prompt="chess prompt", model_name="chess-model")
+    opponent = ChessOpponentAssistant(system_prompt="op prompt", model_name="op-model")
+
+    expected_configs = {
+        chat: {"system_prompt": "chat prompt", "model_name": "chat-model"},
+        minesweeper: {"system_prompt": "ms prompt", "model_name": "ms-model"},
+        chess: {"system_prompt": "chess prompt", "model_name": "chess-model"},
+        opponent: {"system_prompt": "op prompt", "model_name": "op-model"},
+    }
+
+    for assistant, expected in expected_configs.items():
+        assert isinstance(assistant, AIAssistantBase)
+        assert assistant.agent_config() == expected
+
+
+def test_chess_assistants_can_fallback_to_fen_side():
+    chess = ChessSuggestAssistant()
+    fen_black = "rnbqkbnr/pppppppp/8/8/8/8/PPPPPPPP/RNBQKBNR b KQkq - 0 1"
+    suggest = chess.suggest(fen_black, side_to_move="")
+    assert suggest["move"] == "e7e5"
+    explicit = chess.suggest(fen_black, side_to_move="white")
+    assert explicit["move"] == "e2e4"
+
+    opponent = ChessOpponentAssistant()
+    move = opponent.suggest(fen_black, player_side="")
+    assert move["opponent_side"] == "white"
