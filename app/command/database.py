@@ -88,7 +88,7 @@ async def _run_migrations_async(db_path: Path) -> None:
             initial_version = _initial_migration_version()
             if initial_version is not None and current_version == initial_version:
                 logger.warning(
-                    "数据库 user_version=%s 但关键表缺失 %s，准备重新执行初始迁移。",
+                    "Database at user_version=%s is missing key tables %s; re-running initial migration.",
                     current_version,
                     ", ".join(missing_tables),
                 )
@@ -97,7 +97,8 @@ async def _run_migrations_async(db_path: Path) -> None:
                 missing_tables_str = ", ".join(missing_tables)
                 raise RuntimeError(
                     f"database schema is inconsistent at user_version={current_version}: "
-                    f"missing tables: {missing_tables_str}"
+                    f"missing tables: {missing_tables_str}; automatic repair only supports "
+                    f"the initial migration version {initial_version}"
                 )
         for migration_file in migration_files:
             version = _migration_version(migration_file)

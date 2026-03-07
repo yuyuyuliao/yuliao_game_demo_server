@@ -36,7 +36,9 @@ def _parse_dt(value: Any) -> datetime:
     try:
         return datetime.fromisoformat(value)
     except ValueError as exc:
-        raise ValueError(f"invalid datetime value: {value!r}") from exc
+        raise ValueError(
+            f"invalid datetime value: {value!r}, expected ISO format string or datetime object"
+        ) from exc
 
 
 async def _apply_land_decay(session: AsyncSession, instance_row: Any) -> Any:
@@ -157,7 +159,7 @@ async def plant_crop(land_id: int, crop_id: int) -> dict[str, Any]:
 
         now = datetime.now()
         instance = CropInstance(
-            land_id=land.id,
+            land_id=land_id,
             crop_id=crop_id,
             planted_at=now,
             last_state_update_at=now,
