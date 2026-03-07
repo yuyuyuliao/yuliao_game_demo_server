@@ -33,7 +33,12 @@ def test_init_db_runs_migrations_only(tmp_path: Path):
             ).fetchall()
         }
         assert table_names == {"chat_history", "land_plots", "crops", "crop_instances"}
-        assert conn.execute("PRAGMA user_version").fetchone()[0] == 1
+        assert conn.execute("PRAGMA user_version").fetchone()[0] == 2
+        crop_columns = {
+            row[1]
+            for row in conn.execute("PRAGMA table_info(crops)").fetchall()
+        }
+        assert "profit_multiplier" in crop_columns
         assert conn.execute("SELECT COUNT(*) FROM land_plots").fetchone()[0] == 0
         assert conn.execute("SELECT COUNT(*) FROM crops").fetchone()[0] == 0
 
