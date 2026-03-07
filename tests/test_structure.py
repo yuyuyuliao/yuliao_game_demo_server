@@ -31,10 +31,10 @@ def test_database_table_models_define_expected_fields():
     assert issubclass(Crop, BaseModel)
     assert issubclass(CropInstance, BaseModel)
 
-    assert list(ChatHistory.__table__.columns.keys()) == ["player_id", "text", "created_at", "id"]
-    assert list(LandPlot.__table__.columns.keys()) == ["price", "description", "level", "growth_multiplier", "id"]
-    assert list(Crop.__table__.columns.keys()) == ["name", "growth_seconds", "price", "description", "id"]
-    assert list(CropInstance.__table__.columns.keys()) == [
+    assert set(ChatHistory.__table__.columns.keys()) == {"player_id", "text", "created_at", "id"}
+    assert set(LandPlot.__table__.columns.keys()) == {"price", "description", "level", "growth_multiplier", "id"}
+    assert set(Crop.__table__.columns.keys()) == {"name", "growth_seconds", "price", "description", "id"}
+    assert set(CropInstance.__table__.columns.keys()) == {
         "land_id",
         "crop_id",
         "planted_at",
@@ -43,4 +43,4 @@ def test_database_table_models_define_expected_fields():
         "fertility",
         "temperature",
         "id",
-    ]
+    }

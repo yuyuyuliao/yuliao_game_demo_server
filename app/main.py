@@ -30,4 +30,4 @@ def _init_db() -> None:
     except RuntimeError:
         init_db()
         return
-    raise RuntimeError("_init_db 不能在运行中的事件循环里调用，请直接 await init_db_async()")
+    raise RuntimeError("_init_db 不能在运行中的事件循环里调用；异步上下文中请使用 await init_db_async()")

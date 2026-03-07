@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import asyncio
+import logging
 import re
 from pathlib import Path
 
@@ -19,7 +20,7 @@ CHROMA_PATH = str(DATA_DIR / "chroma")
 MIGRATIONS_DIR = APP_DIR / "migrations"
 MIGRATION_FILE_GLOB = "[0-9][0-9][0-9]_*.sql"
 MIGRATION_NAME_PATTERN = re.compile(r"^(?P<version>\d{3})_.+\.sql$")
-REQUIRED_TABLES = tuple(BaseModel.metadata.tables)
+logger = logging.getLogger(__name__)
 
 
 def build_database_url(db_path: Path = DB_PATH) -> str:
@@ -52,6 +53,11 @@ def _migration_version(migration_file: Path) -> int:
     return int(match.group("version"))
 
 
+def _required_tables() -> tuple[str, ...]:
+    """返回当前 ORM 已注册的关键表。"""
+    return tuple(BaseModel.metadata.tables)
+
+
 def _temporary_engine(db_path: Path) -> AsyncEngine:
     """为非默认数据库路径创建临时引擎。"""
     return create_async_engine(build_database_url(db_path), future=True)
@@ -69,7 +75,13 @@ async def _run_migrations_async(db_path: Path) -> None:
             )
         ).fetchall()
         existing_tables = {table_row[0] for table_row in table_rows}
-        if current_version > 0 and not set(REQUIRED_TABLES).issubset(existing_tables):
+        missing_tables = sorted(set(_required_tables()) - existing_tables)
+        if current_version > 0 and missing_tables:
+            logger.warning(
+                "数据库 user_version=%s 但关键表缺失 %s，准备重新执行迁移。",
+                current_version,
+                ", ".join(missing_tables),
+            )
             current_version = 0
         for migration_file in migration_files:
             version = _migration_version(migration_file)

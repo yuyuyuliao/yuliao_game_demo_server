@@ -4,12 +4,16 @@ import sqlite3
 from pathlib import Path
 
 from app.command.database import init_db
-from app.model import BaseModel
+from app.model import BaseModel, ChatHistory, Crop, CropInstance, LandPlot
 
 
 def test_init_db_runs_sql_migrations_and_seeds_once(tmp_path: Path):
     db_path = tmp_path / "migration-test.db"
 
+    assert ChatHistory.__tablename__ == "chat_history"
+    assert LandPlot.__tablename__ == "land_plots"
+    assert Crop.__tablename__ == "crops"
+    assert CropInstance.__tablename__ == "crop_instances"
     assert {"chat_history", "land_plots", "crops", "crop_instances"} <= set(BaseModel.metadata.tables)
 
     init_db(db_path)

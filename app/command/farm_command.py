@@ -30,10 +30,13 @@ MATURE_STAGE = "完全成熟"
 
 
 def _parse_dt(value: Any) -> datetime:
-    """将数据库 DATETIME 字符串转换为 datetime。"""
+    """将数据库 DATETIME 值转换为 datetime 对象，支持字符串或 datetime。"""
     if isinstance(value, datetime):
         return value
-    return datetime.fromisoformat(value)
+    try:
+        return datetime.fromisoformat(value)
+    except ValueError as exc:
+        raise ValueError(f"invalid datetime value: {value!r}") from exc
 
 
 async def _apply_land_decay(session: AsyncSession, instance_row: Any) -> Any:
