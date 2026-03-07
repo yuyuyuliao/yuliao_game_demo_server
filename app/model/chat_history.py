@@ -1,24 +1,22 @@
 from __future__ import annotations
 
-from dataclasses import asdict, dataclass
-from typing import Any
+from datetime import datetime
+
+from sqlalchemy import DateTime, String, text as sql_text
+from sqlalchemy.orm import Mapped, mapped_column
+
+from app.model.base import BaseModel
 
 
-@dataclass(slots=True)
-class ChatHistory:
-    id: int | None
-    player_id: str
-    text: str
-    created_at: str | None = None
+class ChatHistory(BaseModel):
+    """玩家聊天历史记录。"""
 
-    @classmethod
-    def from_row(cls, row: Any) -> "ChatHistory":
-        return cls(
-            id=row["id"],
-            player_id=row["player_id"],
-            text=row["text"],
-            created_at=row["created_at"],
-        )
+    __tablename__ = "chat_history"
 
-    def to_dict(self) -> dict[str, Any]:
-        return asdict(self)
+    player_id: Mapped[str] = mapped_column(String, nullable=False)
+    text: Mapped[str] = mapped_column(String, nullable=False)
+    created_at: Mapped[datetime | None] = mapped_column(
+        DateTime,
+        nullable=True,
+        server_default=sql_text("CURRENT_TIMESTAMP"),
+    )

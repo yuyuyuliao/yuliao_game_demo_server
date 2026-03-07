@@ -1,13 +1,30 @@
 from __future__ import annotations
 
 import sqlite3
+import subprocess
+import sys
 from datetime import datetime, timedelta
+from pathlib import Path
 
+import pytest
 from fastapi.testclient import TestClient
 
-from app.main import DB_PATH, app
+from app.main import DB_PATH, _init_db, app
+
+REPO_ROOT = Path(__file__).resolve().parents[1]
+SCRIPT_PATH = REPO_ROOT / "scripts" / "20260307_seed_farm_data.py"
 
 client = TestClient(app)
+
+
+@pytest.fixture(scope="module", autouse=True)
+def prepare_farm_data() -> None:
+    _init_db()
+    subprocess.run(
+        [sys.executable, str(SCRIPT_PATH), "--db-path", str(DB_PATH)],
+        check=True,
+        cwd=REPO_ROOT,
+    )
 
 
 def _clear_land(land_id: int) -> None:

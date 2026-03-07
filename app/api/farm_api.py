@@ -11,24 +11,24 @@ router = APIRouter()
 
 
 @router.get("/farm/lands")
-def list_lands_api() -> dict[str, list[dict[str, Any]]]:
+async def list_lands_api() -> dict[str, list[dict[str, Any]]]:
     """查询全部土地基础信息。"""
-    return list_lands()
+    return await list_lands()
 
 
 @router.post("/farm/plant")
-def plant_crop_api(payload: PlantRequest) -> dict[str, Any]:
+async def plant_crop_api(payload: PlantRequest) -> dict[str, Any]:
     """在指定土地上种植作物。"""
-    return plant_crop(payload.land_id, payload.crop_id)
+    return await plant_crop(payload.land_id, payload.crop_id)
 
 
 @router.get("/farm/status/{land_id}")
-def query_crop_status_api(land_id: int) -> dict[str, Any]:
+async def query_crop_status_api(land_id: int) -> dict[str, Any]:
     """查询指定土地的作物状态。"""
-    return query_crop_status(land_id)
+    return await query_crop_status(land_id)
 
 
 @router.post("/farm/harvest")
-def harvest_crop_api(payload: HarvestRequest) -> dict[str, Any]:
+async def harvest_crop_api(payload: HarvestRequest) -> dict[str, Any]:
     """采集成熟作物。"""
-    return harvest_crop(payload.land_id)
+    return await harvest_crop(payload.land_id)

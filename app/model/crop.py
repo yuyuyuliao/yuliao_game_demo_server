@@ -1,26 +1,17 @@
 from __future__ import annotations
 
-from dataclasses import asdict, dataclass
-from typing import Any
+from sqlalchemy import Integer, String
+from sqlalchemy.orm import Mapped, mapped_column
+
+from app.model.base import BaseModel
 
 
-@dataclass(slots=True)
-class Crop:
-    id: int
-    name: str
-    growth_seconds: int
-    price: int
-    description: str
+class Crop(BaseModel):
+    """作物基础配置。"""
 
-    @classmethod
-    def from_row(cls, row: Any) -> "Crop":
-        return cls(
-            id=row["id"],
-            name=row["name"],
-            growth_seconds=row["growth_seconds"],
-            price=row["price"],
-            description=row["description"],
-        )
+    __tablename__ = "crops"
 
-    def to_dict(self) -> dict[str, Any]:
-        return asdict(self)
+    name: Mapped[str] = mapped_column(String, nullable=False, unique=True)
+    growth_seconds: Mapped[int] = mapped_column(Integer, nullable=False)
+    price: Mapped[int] = mapped_column(Integer, nullable=False)
+    description: Mapped[str] = mapped_column(String, nullable=False)
