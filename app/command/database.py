@@ -107,7 +107,6 @@ async def _run_migrations_async(db_path: Path) -> None:
             sql = migration_file.read_text(encoding="utf-8")
             await conn.executescript(sql)
             await conn.execute(f"PRAGMA user_version = {version:d}")
-            current_version = version
         await conn.commit()
 
 
