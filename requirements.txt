@@ -1,4 +1,6 @@
 fastapi==0.116.1
+# Starlette must satisfy FastAPI's constraint: >=0.40.0,<0.48.0
+starlette==0.47.3
 uvicorn==0.35.0
 chromadb==1.0.20
 pytest==8.4.2

@@ -13,8 +13,11 @@ class ChatHistory(BaseModel):
 
     __tablename__ = "chat_history"
 
+    # 玩家ID，非空
     player_id: Mapped[str] = mapped_column(String, nullable=False)
+    # 聊天文本，非空
     text: Mapped[str] = mapped_column(String, nullable=False)
+    # 创建时间，非空，默认为当前时间
     created_at: Mapped[datetime | None] = mapped_column(
         DateTime,
         nullable=True,
