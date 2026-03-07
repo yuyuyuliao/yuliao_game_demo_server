@@ -10,12 +10,13 @@ DATA_DIR.mkdir(parents=True, exist_ok=True)
 DB_PATH = DATA_DIR / "chat.db"
 CHROMA_PATH = str(DATA_DIR / "chroma")
 MIGRATIONS_DIR = APP_DIR / "migrations"
+MIGRATION_FILE_GLOB = "[0-9][0-9][0-9]_*.sql"
 MIGRATION_NAME_PATTERN = re.compile(r"^(?P<version>\d{3})_.+\.sql$")
 
 
 def _migration_files() -> list[Path]:
     """按版本顺序返回迁移文件。"""
-    return sorted(MIGRATIONS_DIR.glob("[0-9][0-9][0-9]_*.sql"))
+    return sorted(MIGRATIONS_DIR.glob(MIGRATION_FILE_GLOB))
 
 
 def _migration_version(migration_file: Path) -> int:
@@ -33,6 +34,8 @@ def run_migrations(db_path: Path = DB_PATH) -> None:
         current_version = conn.execute("PRAGMA user_version").fetchone()[0]
         for migration_file in migration_files:
             version = _migration_version(migration_file)
+            if not isinstance(version, int):
+                raise TypeError(f"invalid migration version type: {type(version)!r}")
             if version <= current_version:
                 continue
             conn.executescript(migration_file.read_text(encoding="utf-8"))
