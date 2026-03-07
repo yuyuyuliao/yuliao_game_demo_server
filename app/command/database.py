@@ -23,7 +23,10 @@ def _migration_version(migration_file: Path) -> int:
     """解析迁移文件版本号。"""
     match = MIGRATION_NAME_PATTERN.fullmatch(migration_file.name)
     if match is None:
-        raise ValueError(f"invalid migration filename: {migration_file.name}")
+        raise ValueError(
+            f"invalid migration filename '{migration_file.name}': "
+            f"expected format '{MIGRATION_FILE_GLOB}'"
+        )
     return int(match.group("version"))
 
 
