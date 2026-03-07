@@ -8,59 +8,31 @@ DATA_DIR = APP_DIR / "data"
 DATA_DIR.mkdir(parents=True, exist_ok=True)
 DB_PATH = DATA_DIR / "chat.db"
 CHROMA_PATH = str(DATA_DIR / "chroma")
+MIGRATIONS_DIR = APP_DIR / "migrations"
 
 
-def init_db() -> None:
-    """初始化聊天和种地系统所需表。"""
-    with sqlite3.connect(DB_PATH) as conn:
-        conn.execute(
-            """
-            CREATE TABLE IF NOT EXISTS chat_history (
-                id INTEGER PRIMARY KEY AUTOINCREMENT,
-                player_id TEXT NOT NULL,
-                text TEXT NOT NULL,
-                created_at DATETIME DEFAULT CURRENT_TIMESTAMP
-            )
-            """
-        )
-        conn.execute(
-            """
-            CREATE TABLE IF NOT EXISTS land_plots (
-                id INTEGER PRIMARY KEY AUTOINCREMENT,
-                price INTEGER NOT NULL,
-                description TEXT NOT NULL,
-                level INTEGER NOT NULL,
-                growth_multiplier REAL NOT NULL
-            )
-            """
-        )
-        conn.execute(
-            """
-            CREATE TABLE IF NOT EXISTS crops (
-                id INTEGER PRIMARY KEY AUTOINCREMENT,
-                name TEXT NOT NULL UNIQUE,
-                growth_seconds INTEGER NOT NULL,
-                price INTEGER NOT NULL,
-                description TEXT NOT NULL
-            )
-            """
-        )
-        conn.execute(
-            """
-            CREATE TABLE IF NOT EXISTS crop_instances (
-                id INTEGER PRIMARY KEY AUTOINCREMENT,
-                land_id INTEGER NOT NULL UNIQUE,
-                crop_id INTEGER NOT NULL,
-                planted_at DATETIME NOT NULL,
-                last_state_update_at DATETIME NOT NULL,
-                water REAL NOT NULL,
-                fertility REAL NOT NULL,
-                temperature REAL NOT NULL,
-                FOREIGN KEY (land_id) REFERENCES land_plots(id),
-                FOREIGN KEY (crop_id) REFERENCES crops(id)
-            )
-            """
-        )
+def _migration_files() -> list[Path]:
+    """按版本顺序返回迁移文件。"""
+    return sorted(MIGRATIONS_DIR.glob("[0-9][0-9][0-9]_*.sql"))
+
+
+def run_migrations(db_path: Path = DB_PATH) -> None:
+    """执行尚未应用的 SQLite 迁移脚本。"""
+    migration_files = _migration_files()
+    with sqlite3.connect(db_path) as conn:
+        current_version = conn.execute("PRAGMA user_version").fetchone()[0]
+        for migration_file in migration_files:
+            version = int(migration_file.name.split("_", 1)[0])
+            if version <= current_version:
+                continue
+            conn.executescript(migration_file.read_text(encoding="utf-8"))
+            conn.execute(f"PRAGMA user_version = {version}")
+        conn.commit()
+
+
+def _seed_initial_data(db_path: Path) -> None:
+    """初始化基础种地配置数据。"""
+    with sqlite3.connect(db_path) as conn:
         land_count = conn.execute("SELECT COUNT(*) FROM land_plots").fetchone()[0]
         if land_count == 0:
             conn.executemany(
@@ -91,3 +63,9 @@ def init_db() -> None:
                 ],
             )
         conn.commit()
+
+
+def init_db(db_path: Path = DB_PATH) -> None:
+    """通过迁移初始化数据库，并补齐基础种子数据。"""
+    run_migrations(db_path)
+    _seed_initial_data(db_path)

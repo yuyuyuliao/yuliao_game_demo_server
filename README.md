@@ -15,6 +15,7 @@ uvicorn app.main:app --reload
 - `app/api/`：接口层，定义接口与请求参数，并调用对应 command
 - `app/command/`：业务命令层，负责聊天、游戏和种地等具体逻辑
 - `app/model/`：数据库表数据类，每张表一个 model 文件
+- `app/migrations/`：SQLite 数据库迁移脚本，启动时按版本顺序执行
 - `app/prompt/`：统一管理 AI prompt
 - `app/agent/`：统一管理当前几个 AI agent
 - `app/knowledge_parser.py`：知识库元数据解析
