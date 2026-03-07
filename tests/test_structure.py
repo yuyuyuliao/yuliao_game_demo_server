@@ -1,12 +1,10 @@
-from dataclasses import fields
-
 from app.agent import (
     ChatAssistant,
     ChessOpponentAssistant,
     ChessSuggestAssistant,
     MinesweeperAssistant,
 )
-from app.model import ChatHistory, Crop, CropInstance, LandPlot
+from app.model import BaseModel, ChatHistory, Crop, CropInstance, LandPlot
 from app.prompt import (
     CHAT_SYSTEM_PROMPT,
     CHESS_OPPONENT_SYSTEM_PROMPT,
@@ -28,11 +26,15 @@ def test_prompt_and_agent_modules_are_structured():
 
 
 def test_database_table_models_define_expected_fields():
-    assert [field.name for field in fields(ChatHistory)] == ["id", "player_id", "text", "created_at"]
-    assert [field.name for field in fields(LandPlot)] == ["id", "price", "description", "level", "growth_multiplier"]
-    assert [field.name for field in fields(Crop)] == ["id", "name", "growth_seconds", "price", "description"]
-    assert [field.name for field in fields(CropInstance)] == [
-        "id",
+    assert issubclass(ChatHistory, BaseModel)
+    assert issubclass(LandPlot, BaseModel)
+    assert issubclass(Crop, BaseModel)
+    assert issubclass(CropInstance, BaseModel)
+
+    assert list(ChatHistory.__table__.columns.keys()) == ["player_id", "text", "created_at", "id"]
+    assert list(LandPlot.__table__.columns.keys()) == ["price", "description", "level", "growth_multiplier", "id"]
+    assert list(Crop.__table__.columns.keys()) == ["name", "growth_seconds", "price", "description", "id"]
+    assert list(CropInstance.__table__.columns.keys()) == [
         "land_id",
         "crop_id",
         "planted_at",
@@ -40,4 +42,5 @@ def test_database_table_models_define_expected_fields():
         "water",
         "fertility",
         "temperature",
+        "id",
     ]

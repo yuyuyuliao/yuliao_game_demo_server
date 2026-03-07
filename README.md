@@ -14,7 +14,7 @@ uvicorn app.main:app --reload
 - `app/main.py`：应用入口，只负责组装 FastAPI 和生命周期
 - `app/api/`：接口层，定义接口与请求参数，并调用对应 command
 - `app/command/`：业务命令层，负责聊天、游戏和种地等具体逻辑
-- `app/model/`：数据库表数据类，每张表一个 model 文件
+- `app/model/`：SQLAlchemy 异步 ORM 模型定义，每张表一个 model 文件
 - `app/migrations/`：SQLite 数据库迁移脚本，启动时按版本顺序执行
 - `app/prompt/`：统一管理 AI prompt
 - `app/agent/`：统一管理当前几个 AI agent

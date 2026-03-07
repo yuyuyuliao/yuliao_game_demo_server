@@ -1,26 +1,17 @@
 from __future__ import annotations
 
-from dataclasses import asdict, dataclass
-from typing import Any
+from sqlalchemy import Float, Integer, String
+from sqlalchemy.orm import Mapped, mapped_column
+
+from app.model.base import BaseModel
 
 
-@dataclass(slots=True)
-class LandPlot:
-    id: int
-    price: int
-    description: str
-    level: int
-    growth_multiplier: float
+class LandPlot(BaseModel):
+    """土地基础信息。"""
 
-    @classmethod
-    def from_row(cls, row: Any) -> "LandPlot":
-        return cls(
-            id=row["id"],
-            price=row["price"],
-            description=row["description"],
-            level=row["level"],
-            growth_multiplier=row["growth_multiplier"],
-        )
+    __tablename__ = "land_plots"
 
-    def to_dict(self) -> dict[str, Any]:
-        return asdict(self)
+    price: Mapped[int] = mapped_column(Integer, nullable=False)
+    description: Mapped[str] = mapped_column(String, nullable=False)
+    level: Mapped[int] = mapped_column(Integer, nullable=False)
+    growth_multiplier: Mapped[float] = mapped_column(Float, nullable=False)

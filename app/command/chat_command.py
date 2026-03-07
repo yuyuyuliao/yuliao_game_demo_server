@@ -1,9 +1,9 @@
 from __future__ import annotations
 
-import sqlite3
+from sqlalchemy import select
 
 from app.agent import ChatAssistant
-from app.command.database import DB_PATH
+from app.command.database import AsyncSessionLocal
 from app.command.knowledge import knowledge_store
 from app.model import ChatHistory
 from app.prompt import CHAT_SYSTEM_PROMPT
@@ -15,25 +15,22 @@ chat_assistant = ChatAssistant(
 )
 
 
-def record_chat(player_id: str, text: str) -> dict[str, str]:
+async def record_chat(player_id: str, text: str) -> dict[str, str]:
     """写入玩家聊天记录到 SQLite。"""
-    record = ChatHistory(id=None, player_id=player_id, text=text)
-    with sqlite3.connect(DB_PATH) as conn:
-        conn.execute(
-            "INSERT INTO chat_history (player_id, text) VALUES (?, ?)",
-            (record.player_id, record.text),
-        )
-        conn.commit()
+    async with AsyncSessionLocal() as session:
+        session.add(ChatHistory(player_id=player_id, text=text))
+        await session.commit()
     return {"status": "saved"}
 
 
-def daily_chat(player_id: str, message: str) -> dict[str, str]:
+async def daily_chat(player_id: str, message: str) -> dict[str, str]:
     """结合历史聊天与知识库返回日常回复。"""
-    with sqlite3.connect(DB_PATH) as conn:
-        rows = conn.execute(
-            "SELECT text FROM chat_history WHERE player_id=? ORDER BY id DESC LIMIT 5",
-            (player_id,),
-        ).fetchall()
-
-    history = [row[0] for row in rows][::-1]
+    async with AsyncSessionLocal() as session:
+        rows = await session.execute(
+            select(ChatHistory.text)
+            .where(ChatHistory.player_id == player_id)
+            .order_by(ChatHistory.id.desc())
+            .limit(5)
+        )
+        history = list(rows.scalars().all())[::-1]
     return chat_assistant.reply(history, message)
