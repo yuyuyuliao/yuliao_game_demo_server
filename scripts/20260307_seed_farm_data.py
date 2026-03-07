@@ -12,8 +12,8 @@ REPO_ROOT = Path(__file__).resolve().parents[1]
 if str(REPO_ROOT) not in sys.path:
     sys.path.insert(0, str(REPO_ROOT))
 
-from app.command.database import create_session_factory, init_db_async, build_database_url  # noqa: E402
-from app.model import Crop, LandPlot  # noqa: E402
+from app.command.database import build_database_url, create_session_factory, init_db_async
+from app.model import Crop, LandPlot
 
 
 def _default_lands() -> list[LandPlot]:

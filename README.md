@@ -12,6 +12,7 @@ uvicorn app.main:app --reload
 如需写入农场默认数据，请单独执行：
 
 ```bash
+cd /path/to/yuliao_game_demo_server
 python scripts/20260307_seed_farm_data.py
 ```
 

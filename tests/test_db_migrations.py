@@ -9,10 +9,11 @@ from app.command.database import init_db
 from app.model import BaseModel, ChatHistory, Crop, CropInstance, LandPlot
 
 
-SCRIPT_PATH = Path("/home/runner/work/yuliao_game_demo_server/yuliao_game_demo_server/scripts/20260307_seed_farm_data.py")
+REPO_ROOT = Path(__file__).resolve().parents[1]
+SCRIPT_PATH = REPO_ROOT / "scripts" / "20260307_seed_farm_data.py"
 
 
-def test_init_db_runs_only_sql_migrations(tmp_path: Path):
+def test_init_db_runs_migrations_only(tmp_path: Path):
     db_path = tmp_path / "migration-test.db"
 
     assert ChatHistory.__tablename__ == "chat_history"
@@ -44,12 +45,12 @@ def test_seed_script_inserts_default_farm_data_once(tmp_path: Path):
     subprocess.run(
         [sys.executable, str(SCRIPT_PATH), "--db-path", str(db_path)],
         check=True,
-        cwd="/home/runner/work/yuliao_game_demo_server/yuliao_game_demo_server",
+        cwd=REPO_ROOT,
     )
     subprocess.run(
         [sys.executable, str(SCRIPT_PATH), "--db-path", str(db_path)],
         check=True,
-        cwd="/home/runner/work/yuliao_game_demo_server/yuliao_game_demo_server",
+        cwd=REPO_ROOT,
     )
 
     with sqlite3.connect(db_path) as conn:
