@@ -14,7 +14,7 @@ def test_init_db_runs_sql_migrations_and_seeds_once(tmp_path: Path):
     assert LandPlot.__tablename__ == "land_plots"
     assert Crop.__tablename__ == "crops"
     assert CropInstance.__tablename__ == "crop_instances"
-    assert {"chat_history", "land_plots", "crops", "crop_instances"} <= set(BaseModel.metadata.tables)
+    assert set(BaseModel.metadata.tables) == {"chat_history", "land_plots", "crops", "crop_instances"}
 
     init_db(db_path)
     init_db(db_path)

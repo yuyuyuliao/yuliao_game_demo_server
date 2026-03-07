@@ -53,6 +53,14 @@ def _migration_version(migration_file: Path) -> int:
     return int(match.group("version"))
 
 
+def _initial_migration_version() -> int | None:
+    """返回首个迁移版本号。"""
+    migration_files = _migration_files()
+    if not migration_files:
+        return None
+    return _migration_version(migration_files[0])
+
+
 def _required_tables() -> tuple[str, ...]:
     """返回当前 ORM 已注册的关键表。"""
     return tuple(BaseModel.metadata.tables)
@@ -77,12 +85,20 @@ async def _run_migrations_async(db_path: Path) -> None:
         existing_tables = {table_row[0] for table_row in table_rows}
         missing_tables = sorted(set(_required_tables()) - existing_tables)
         if current_version > 0 and missing_tables:
-            logger.warning(
-                "数据库 user_version=%s 但关键表缺失 %s，准备重新执行迁移。",
-                current_version,
-                ", ".join(missing_tables),
-            )
-            current_version = 0
+            initial_version = _initial_migration_version()
+            if initial_version is not None and current_version == initial_version:
+                logger.warning(
+                    "数据库 user_version=%s 但关键表缺失 %s，准备重新执行初始迁移。",
+                    current_version,
+                    ", ".join(missing_tables),
+                )
+                current_version = 0
+            else:
+                missing_tables_str = ", ".join(missing_tables)
+                raise RuntimeError(
+                    f"database schema is inconsistent at user_version={current_version}: "
+                    f"missing tables: {missing_tables_str}"
+                )
         for migration_file in migration_files:
             version = _migration_version(migration_file)
             if version <= current_version:
