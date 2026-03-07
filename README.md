@@ -9,6 +9,12 @@ pip install -r requirements.txt
 uvicorn app.main:app --reload
 ```
 
+如需写入农场默认数据，请单独执行：
+
+```bash
+python scripts/20260307_seed_farm_data.py
+```
+
 ## 项目结构
 
 - `app/main.py`：应用入口，只负责组装 FastAPI 和生命周期
@@ -16,6 +22,7 @@ uvicorn app.main:app --reload
 - `app/command/`：业务命令层，负责聊天、游戏和种地等具体逻辑
 - `app/model/`：SQLAlchemy 异步 ORM 模型定义，每张表一个 model 文件
 - `app/migrations/`：SQLite 数据库迁移脚本，启动时按版本顺序执行
+- `scripts/`：按需执行的数据写入脚本，文件名使用“日期+功能”
 - `app/prompt/`：统一管理 AI prompt
 - `app/agent/`：统一管理当前几个 AI agent
 - `app/knowledge_parser.py`：知识库元数据解析

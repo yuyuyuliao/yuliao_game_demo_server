@@ -6,11 +6,10 @@ import re
 from pathlib import Path
 
 import aiosqlite
-from sqlalchemy import func, select
 from sqlalchemy.ext.asyncio import AsyncEngine, AsyncSession, create_async_engine
 from sqlalchemy.orm import sessionmaker
 
-from app.model import BaseModel, Crop, LandPlot
+from app.model import BaseModel
 
 APP_DIR = Path(__file__).resolve().parents[1]
 DATA_DIR = APP_DIR / "data"
@@ -115,47 +114,9 @@ async def run_migrations(db_path: Path = DB_PATH) -> None:
     await _run_migrations_async(db_path)
 
 
-async def _seed_initial_data_async(session_factory: sessionmaker) -> None:
-    """初始化基础种地配置数据。"""
-    async with session_factory() as session:
-        land_count = await session.scalar(select(func.count()).select_from(LandPlot))
-        if land_count == 0:
-            session.add_all(
-                [
-                    LandPlot(price=100, description="1号地：靠近小溪，土壤松软。", level=1, growth_multiplier=1.00),
-                    LandPlot(price=180, description="2号地：有石板路，适合新手。", level=1, growth_multiplier=1.00),
-                    LandPlot(price=300, description="3号地：老农留下的试验田。", level=2, growth_multiplier=1.10),
-                    LandPlot(price=480, description="4号地：向阳高地，温度更稳定。", level=2, growth_multiplier=1.10),
-                    LandPlot(price=720, description="5号地：微风谷地，生长速度更快。", level=3, growth_multiplier=1.20),
-                    LandPlot(price=1020, description="6号地：传说中的金色土壤。", level=4, growth_multiplier=1.30),
-                ]
-            )
-        crop_count = await session.scalar(select(func.count()).select_from(Crop))
-        if crop_count == 0:
-            session.add_all(
-                [
-                    Crop(name="胡萝卜", growth_seconds=3600, price=30, description="成长稳定，适合练手。"),
-                    Crop(name="玉米", growth_seconds=7200, price=60, description="成熟后收益更高。"),
-                    Crop(name="草莓", growth_seconds=5400, price=80, description="甜度高但对水量要求更高。"),
-                ]
-            )
-        await session.commit()
-
-
 async def init_db_async(db_path: Path = DB_PATH) -> None:
-    """通过迁移初始化数据库，并补齐基础种子数据。"""
+    """通过迁移初始化数据库。"""
     await run_migrations(db_path)
-    temp_engine: AsyncEngine | None = None
-    if db_path == DB_PATH:
-        session_factory = AsyncSessionLocal
-    else:
-        temp_engine = _temporary_engine(db_path)
-        session_factory = create_session_factory(temp_engine)
-    try:
-        await _seed_initial_data_async(session_factory)
-    finally:
-        if temp_engine is not None:
-            await temp_engine.dispose()
 
 
 def init_db(db_path: Path = DB_PATH) -> None:

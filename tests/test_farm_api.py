@@ -1,11 +1,23 @@
 from __future__ import annotations
 
 import sqlite3
+import subprocess
+import sys
 from datetime import datetime, timedelta
+from pathlib import Path
 
 from fastapi.testclient import TestClient
 
-from app.main import DB_PATH, app
+from app.main import DB_PATH, _init_db, app
+
+SCRIPT_PATH = Path("/home/runner/work/yuliao_game_demo_server/yuliao_game_demo_server/scripts/20260307_seed_farm_data.py")
+
+_init_db()
+subprocess.run(
+    [sys.executable, str(SCRIPT_PATH), "--db-path", str(DB_PATH)],
+    check=True,
+    cwd="/home/runner/work/yuliao_game_demo_server/yuliao_game_demo_server",
+)
 
 client = TestClient(app)
 

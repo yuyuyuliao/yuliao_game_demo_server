@@ -1,13 +1,18 @@
 from __future__ import annotations
 
 import sqlite3
+import subprocess
+import sys
 from pathlib import Path
 
 from app.command.database import init_db
 from app.model import BaseModel, ChatHistory, Crop, CropInstance, LandPlot
 
 
-def test_init_db_runs_sql_migrations_and_seeds_once(tmp_path: Path):
+SCRIPT_PATH = Path("/home/runner/work/yuliao_game_demo_server/yuliao_game_demo_server/scripts/20260307_seed_farm_data.py")
+
+
+def test_init_db_runs_only_sql_migrations(tmp_path: Path):
     db_path = tmp_path / "migration-test.db"
 
     assert ChatHistory.__tablename__ == "chat_history"
@@ -28,5 +33,25 @@ def test_init_db_runs_sql_migrations_and_seeds_once(tmp_path: Path):
         }
         assert table_names == {"chat_history", "land_plots", "crops", "crop_instances"}
         assert conn.execute("PRAGMA user_version").fetchone()[0] == 1
+        assert conn.execute("SELECT COUNT(*) FROM land_plots").fetchone()[0] == 0
+        assert conn.execute("SELECT COUNT(*) FROM crops").fetchone()[0] == 0
+
+
+def test_seed_script_inserts_default_farm_data_once(tmp_path: Path):
+    db_path = tmp_path / "seed-script.db"
+
+    init_db(db_path)
+    subprocess.run(
+        [sys.executable, str(SCRIPT_PATH), "--db-path", str(db_path)],
+        check=True,
+        cwd="/home/runner/work/yuliao_game_demo_server/yuliao_game_demo_server",
+    )
+    subprocess.run(
+        [sys.executable, str(SCRIPT_PATH), "--db-path", str(db_path)],
+        check=True,
+        cwd="/home/runner/work/yuliao_game_demo_server/yuliao_game_demo_server",
+    )
+
+    with sqlite3.connect(db_path) as conn:
         assert conn.execute("SELECT COUNT(*) FROM land_plots").fetchone()[0] == 6
         assert conn.execute("SELECT COUNT(*) FROM crops").fetchone()[0] == 3
