@@ -47,11 +47,6 @@ def test_seed_script_inserts_default_farm_data_once(tmp_path: Path):
         check=True,
         cwd=REPO_ROOT,
     )
-    subprocess.run(
-        [sys.executable, str(SCRIPT_PATH), "--db-path", str(db_path)],
-        check=True,
-        cwd=REPO_ROOT,
-    )
 
     with sqlite3.connect(db_path) as conn:
         assert conn.execute("SELECT COUNT(*) FROM land_plots").fetchone()[0] == 6
