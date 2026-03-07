@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import re
 import sqlite3
 from pathlib import Path
 
@@ -9,11 +10,20 @@ DATA_DIR.mkdir(parents=True, exist_ok=True)
 DB_PATH = DATA_DIR / "chat.db"
 CHROMA_PATH = str(DATA_DIR / "chroma")
 MIGRATIONS_DIR = APP_DIR / "migrations"
+MIGRATION_NAME_PATTERN = re.compile(r"^(?P<version>\d{3})_.+\.sql$")
 
 
 def _migration_files() -> list[Path]:
     """按版本顺序返回迁移文件。"""
     return sorted(MIGRATIONS_DIR.glob("[0-9][0-9][0-9]_*.sql"))
+
+
+def _migration_version(migration_file: Path) -> int:
+    """解析迁移文件版本号。"""
+    match = MIGRATION_NAME_PATTERN.fullmatch(migration_file.name)
+    if match is None:
+        raise ValueError(f"invalid migration filename: {migration_file.name}")
+    return int(match.group("version"))
 
 
 def run_migrations(db_path: Path = DB_PATH) -> None:
@@ -22,11 +32,11 @@ def run_migrations(db_path: Path = DB_PATH) -> None:
     with sqlite3.connect(db_path) as conn:
         current_version = conn.execute("PRAGMA user_version").fetchone()[0]
         for migration_file in migration_files:
-            version = int(migration_file.name.split("_", 1)[0])
+            version = _migration_version(migration_file)
             if version <= current_version:
                 continue
             conn.executescript(migration_file.read_text(encoding="utf-8"))
-            conn.execute(f"PRAGMA user_version = {version}")
+            conn.execute(f"PRAGMA user_version = {version:d}")
         conn.commit()
 
 
