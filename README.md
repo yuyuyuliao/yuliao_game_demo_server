@@ -2,18 +2,75 @@
 
 用于 unity 小游戏 demo 的后端轻量化服务（FastAPI）。
 
-## 运行
+## 安装依赖
 
 ```bash
 pip install -r requirements.txt
+```
+
+## 数据库迁移与初始化
+
+项目默认使用 SQLite，数据目录位于 `app/data/`：
+
+- 主数据库：`app/data/chat.db`
+- Chroma 数据目录：`app/data/chroma`
+
+### 1. 执行表迁移
+
+应用启动时会自动执行 `app/migrations/` 下尚未应用的 SQL 迁移脚本，因此首次启动项目时无需额外手动建表。
+
+```bash
 uvicorn app.main:app --reload
 ```
 
-如需写入农场默认数据，请单独执行：
+如果只想单独执行迁移、不启动 FastAPI，可以直接调用仓库内的初始化入口：
+
+```bash
+python -c "from app.command.database import init_db; init_db()"
+```
+
+如需迁移到其他 SQLite 文件，可自行传入路径：
+
+```bash
+python -c "from pathlib import Path; from app.command.database import init_db; init_db(Path('app/data/chat.db'))"
+```
+
+### 2. 初始化默认数据
+
+表迁移只负责创建或升级表结构，不会写入农场默认数据。若需要 6 块默认土地和 3 种默认作物，请单独执行初始化脚本：
 
 ```bash
 cd /path/to/yuliao_game_demo_server
 python scripts/20260307_seed_farm_data.py
+```
+
+脚本支持通过 `--db-path` 指定数据库文件：
+
+```bash
+python scripts/20260307_seed_farm_data.py --db-path app/data/chat.db
+```
+
+该脚本会先确保迁移已执行，再按需写入默认数据；如果表中已有数据，则不会重复插入，可重复执行。
+
+### 3. 推荐首次启动顺序
+
+```bash
+pip install -r requirements.txt
+python -c "from app.command.database import init_db; init_db()"
+python scripts/20260307_seed_farm_data.py
+uvicorn app.main:app --reload
+```
+
+如果只是体验聊天、棋类或扫雷接口，可以跳过“初始化默认数据”这一步；只有农场默认土地/作物演示需要额外执行脚本。
+
+### 4. 重新初始化本地数据
+
+如需重置本地 SQLite 数据，请先备份 `app/data/chat.db`，再删除该文件并重新执行“表迁移”和“初始化默认数据”步骤。
+
+## 运行
+
+```bash
+uvicorn app.main:app --reload
 ```
 
 ## 项目结构

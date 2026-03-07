@@ -33,7 +33,7 @@ def test_database_table_models_define_expected_fields():
 
     assert set(ChatHistory.__table__.columns.keys()) == {"player_id", "text", "created_at", "id"}
     assert set(LandPlot.__table__.columns.keys()) == {"price", "description", "level", "growth_multiplier", "id"}
-    assert set(Crop.__table__.columns.keys()) == {"name", "growth_seconds", "price", "description", "id"}
+    assert set(Crop.__table__.columns.keys()) == {"name", "growth_seconds", "price", "description", "profit_multiplier", "id"}
     assert set(CropInstance.__table__.columns.keys()) == {
         "land_id",
         "crop_id",

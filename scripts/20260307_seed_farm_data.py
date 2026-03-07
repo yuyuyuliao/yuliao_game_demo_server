@@ -31,9 +31,9 @@ def _default_lands() -> list[LandPlot]:
 def _default_crops() -> list[Crop]:
     """返回农场默认作物数据。"""
     return [
-        Crop(name="胡萝卜", growth_seconds=3600, price=30, description="成长稳定，适合练手。"),
-        Crop(name="玉米", growth_seconds=7200, price=60, description="成熟后收益更高。"),
-        Crop(name="草莓", growth_seconds=5400, price=80, description="甜度高但对水量要求更高。"),
+        Crop(name="胡萝卜", growth_seconds=3600, price=30, description="成长稳定，适合练手。", profit_multiplier=1.1),
+        Crop(name="玉米", growth_seconds=7200, price=60, description="成熟后收益更高。", profit_multiplier=1.35),
+        Crop(name="草莓", growth_seconds=5400, price=80, description="甜度高但对水量要求更高。", profit_multiplier=1.5),
     ]
 
 
