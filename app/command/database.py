@@ -34,8 +34,6 @@ def run_migrations(db_path: Path = DB_PATH) -> None:
         current_version = conn.execute("PRAGMA user_version").fetchone()[0]
         for migration_file in migration_files:
             version = _migration_version(migration_file)
-            if not isinstance(version, int):
-                raise TypeError(f"invalid migration version type: {type(version)!r}")
             if version <= current_version:
                 continue
             conn.executescript(migration_file.read_text(encoding="utf-8"))
