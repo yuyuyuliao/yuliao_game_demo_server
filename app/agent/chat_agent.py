@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import json
+import logging
 from typing import Any, Callable, Optional, TypedDict
 
 from langchain.tools import tool
@@ -8,8 +9,14 @@ from langgraph.graph import END, START, StateGraph
 
 from app.agent.base import AIAssistantBase
 
+logger = logging.getLogger(__name__)
+
 # 最近 8 条历史文本通常足够覆盖几轮连续对话，同时能避免兜底回复里塞入过长上下文。
 CHAT_MEMORY_WINDOW = 8
+DEFAULT_EMPTY_MEMORIES = "我们还没有历史聊天记录。"
+MAX_TOOL_DECISION_LOG_LENGTH = 120
+AVAILABLE_TOOLS = ("player_info", "farm_info", "game_guide")
+AFFIRMATIVE_DECISION_VALUES = {"true", "1", "yes", "y", "是"}
 PLAYER_INFO_KEYWORDS = ("玩家信息", "玩家资料", "我的资料", "我的信息", "等级", "金币", "账号", "昵称")
 FARM_INFO_KEYWORDS = ("田地", "农田", "土地", "地块", "农场", "作物", "庄稼", "收成", "种植")
 GAME_GUIDE_KEYWORDS = ("攻略", "技巧", "建议", "怎么玩", "如何", "怎么", "帮助", "扫雷", "国际象棋", "下棋", "开局")
@@ -129,15 +136,16 @@ class ChatAssistant(AIAssistantBase):
     def _remember_history(self, state: ChatAgentState) -> ChatAgentState:
         """整理近期历史对话，作为短期记忆输入。"""
         history = state.get("history") or []
-        memories = "；".join(history[-CHAT_MEMORY_WINDOW:]) if history else "我们还没有历史聊天记录。"
+        memories = "；".join(history[-CHAT_MEMORY_WINDOW:]) if history else DEFAULT_EMPTY_MEMORIES
         return {"memories": memories}
 
     def _decide_tools(self, state: ChatAgentState) -> ChatAgentState:
         """根据玩家问题内容决定是否需要触发工具。"""
         message = state.get("message", "")
-        memories = state.get("memories", "我们还没有历史聊天记录。")
+        memories = state.get("memories", DEFAULT_EMPTY_MEMORIES)
         tool_decisions = self._decide_tools_with_model(message=message, memories=memories)
         if tool_decisions is None:
+            logger.warning("聊天工具判定模型不可用或返回无效结果，已回退到本地规则。")
             tool_decisions = self._fallback_tool_decisions(message)
         requested_tools: list[str] = []
         if self._needs_player_info(tool_decisions):
@@ -170,7 +178,7 @@ class ChatAssistant(AIAssistantBase):
 
     def _generate_reply(self, state: ChatAgentState) -> ChatAgentState:
         """综合记忆与工具结果生成最终回复。"""
-        memories = state.get("memories", "我们还没有历史聊天记录。")
+        memories = state.get("memories", DEFAULT_EMPTY_MEMORIES)
         message = state.get("message", "")
         tool_outputs = state.get("tool_outputs", {})
         tool_text = self._build_tool_text(tool_outputs)
@@ -254,7 +262,7 @@ class ChatAssistant(AIAssistantBase):
         )
 
     def _decide_tools_with_model(self, *, message: str, memories: str) -> dict[str, bool] | None:
-        """优先交给模型做工具选择，失败时返回 None 走本地兜底。"""
+        """优先交给模型做工具选择；无响应或响应无法解析时返回 None 走本地兜底。"""
         output_text = self._call_openai(self._build_tool_decision_prompt(memories=memories, message=message))
         if not output_text:
             return None
@@ -266,21 +274,28 @@ class ChatAssistant(AIAssistantBase):
         try:
             payload = json.loads(output_text)
         except json.JSONDecodeError:
+            snippet = output_text[:MAX_TOOL_DECISION_LOG_LENGTH]
+            if len(output_text) > MAX_TOOL_DECISION_LOG_LENGTH:
+                snippet += "...(truncated)"
+            logger.warning(
+                "聊天工具判定返回的 JSON 解析失败，响应片段：%s",
+                snippet,
+            )
             return None
         return {
             tool_name: ChatAssistant._normalize_decision_flag(payload.get(tool_name))
-            for tool_name in ("player_info", "farm_info", "game_guide")
+            for tool_name in AVAILABLE_TOOLS
         }
 
     @staticmethod
     def _normalize_decision_flag(value: object) -> bool:
-        """把模型返回的字段值规整为布尔值。"""
+        """把模型返回的字段值规整为布尔值，兼容少量字符串化布尔输出。"""
         if isinstance(value, bool):
             return value
         if isinstance(value, (int, float)):
             return value != 0
         if isinstance(value, str):
-            return value.strip().lower() in {"true", "1", "yes", "y", "是"}
+            return value.strip().lower() in AFFIRMATIVE_DECISION_VALUES
         return False
 
     @staticmethod
