@@ -1,11 +1,12 @@
 from __future__ import annotations
 
+import importlib.util
 import sqlite3
 import subprocess
 import sys
 from pathlib import Path
 
-from app.command.database import init_db
+from app.command.database import DB_PATH, init_db
 from app.model import BaseModel, ChatHistory, Crop, CropInstance, LandPlot
 
 
@@ -66,3 +67,16 @@ def test_seed_script_inserts_default_farm_data_once(tmp_path: Path):
     with sqlite3.connect(db_path) as conn:
         assert conn.execute("SELECT COUNT(*) FROM land_plots").fetchone()[0] == 6
         assert conn.execute("SELECT COUNT(*) FROM crops").fetchone()[0] == 3
+
+
+def test_seed_script_default_db_path_is_game_db():
+    spec = importlib.util.spec_from_file_location("seed_farm_data_script", SCRIPT_PATH)
+    assert spec is not None
+    assert spec.loader is not None
+    module = importlib.util.module_from_spec(spec)
+    spec.loader.exec_module(module)
+
+    args = module.parse_args([])
+
+    assert args.db_path == DB_PATH
+    assert args.db_path.name == "game.db"
