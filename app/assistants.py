@@ -3,7 +3,6 @@ from app.agent import (
     ChatAssistant,
     ChessOpponentAssistant,
     ChessSuggestAssistant,
-    MINESWEEPER_UNKNOWN_CELL_MARKERS,
     MinesweeperAssistant,
 )
 
@@ -13,5 +12,4 @@ __all__ = [
     "MinesweeperAssistant",
     "ChessSuggestAssistant",
     "ChessOpponentAssistant",
-    "MINESWEEPER_UNKNOWN_CELL_MARKERS",
 ]

@@ -10,22 +10,23 @@ from app.prompt import (
     MINESWEEPER_SYSTEM_PROMPT,
 )
 
+MODEL_NAME = "qwen2.5:3b"
 minesweeper_assistant = MinesweeperAssistant(
     system_prompt=MINESWEEPER_SYSTEM_PROMPT,
-    model_name="minesweeper-model-v1",
+    model_name=MODEL_NAME,
 )
 chess_assistant = ChessSuggestAssistant(
     system_prompt=CHESS_SYSTEM_PROMPT,
-    model_name="chess-model-v1",
+    model_name=MODEL_NAME,
     knowledge_search=knowledge_store.search,
 )
 chess_opponent_assistant = ChessOpponentAssistant(
     system_prompt=CHESS_OPPONENT_SYSTEM_PROMPT,
-    model_name="chess-opponent-model-v1",
+    model_name=MODEL_NAME,
 )
 
 
-def suggest_minesweeper(board: list[list[Any]]) -> dict[str, Any]:
+def suggest_minesweeper(board: str) -> dict[str, Any]:
     """给出扫雷下一步建议。"""
     return minesweeper_assistant.suggest(board)
 
