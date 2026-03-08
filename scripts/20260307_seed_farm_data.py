@@ -60,7 +60,7 @@ async def seed_farm_data(db_path: Path) -> None:
 def main() -> None:
     """解析命令行参数并执行默认数据写入。"""
     parser = argparse.ArgumentParser(description="写入农场默认数据")
-    parser.add_argument("--db-path", type=Path, default=REPO_ROOT / "app" / "data" / "chat.db")
+    parser.add_argument("--db-path", type=Path, default=REPO_ROOT / "app" / "data" / "game.db")
     args = parser.parse_args()
     asyncio.run(seed_farm_data(args.db_path))
 

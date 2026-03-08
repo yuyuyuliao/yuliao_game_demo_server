@@ -12,7 +12,7 @@ pip install -r requirements.txt
 
 项目默认使用 SQLite，数据目录位于 `app/data/`：
 
-- 主数据库：`app/data/chat.db`
+- 主数据库：`app/data/game.db`
 - Chroma 数据目录：`app/data/chroma`
 
 ### 1. 执行表迁移
@@ -20,7 +20,7 @@ pip install -r requirements.txt
 应用启动时会自动执行 `app/migrations/` 下尚未应用的 SQL 迁移脚本，因此首次启动项目时无需额外手动建表。
 
 ```bash
-uvicorn app.main:app --reload
+uvicorn app.main:app --relo![img.png](img.png)ad
 ```
 
 如果只想单独执行迁移、不启动 FastAPI，可以直接调用仓库内的初始化入口：
@@ -32,7 +32,7 @@ python -c "from app.command.database import init_db; init_db()"
 如需迁移到其他 SQLite 文件，可自行传入路径：
 
 ```bash
-python -c "from pathlib import Path; from app.command.database import init_db; init_db(Path('app/data/chat.db'))"
+python -c "from pathlib import Path; from app.command.database import init_db; init_db(Path('app/data/game.db'))"
 ```
 
 ### 2. 初始化默认数据
@@ -47,7 +47,7 @@ python scripts/20260307_seed_farm_data.py
 脚本支持通过 `--db-path` 指定数据库文件：
 
 ```bash
-python scripts/20260307_seed_farm_data.py --db-path app/data/chat.db
+python scripts/20260307_seed_farm_data.py --db-path app/data/game.db
 ```
 
 该脚本会先确保迁移已执行，再按需写入默认数据；如果表中已有数据，则不会重复插入，可重复执行。
@@ -65,7 +65,7 @@ uvicorn app.main:app --reload
 
 ### 4. 重新初始化本地数据
 
-如需重置本地 SQLite 数据，请先备份 `app/data/chat.db`，再删除该文件并重新执行“表迁移”和“初始化默认数据”步骤。
+如需重置本地 SQLite 数据，请先备份 `app/data/game.db`，再删除该文件并重新执行“表迁移”和“初始化默认数据”步骤。
 
 ## 运行
 

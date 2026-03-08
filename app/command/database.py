@@ -14,7 +14,7 @@ from app.model import BaseModel
 APP_DIR = Path(__file__).resolve().parents[1]
 DATA_DIR = APP_DIR / "data"
 DATA_DIR.mkdir(parents=True, exist_ok=True)
-DB_PATH = DATA_DIR / "chat.db"
+DB_PATH = DATA_DIR / "game.db"
 CHROMA_PATH = str(DATA_DIR / "chroma")
 MIGRATIONS_DIR = APP_DIR / "migrations"
 MIGRATION_FILE_GLOB = "[0-9][0-9][0-9]_*.sql"
