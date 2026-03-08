@@ -16,4 +16,34 @@ class ChessOpponentAssistant(AIAssistantBase):
             side = _fen_side_to_move(board_fen) or "white"
         opponent_side = "black" if side == "white" else "white"
         move = "e7e5" if opponent_side == "black" else "e2e4"
+        output_text = self._call_openai(
+            self._build_user_prompt(
+                board_fen=board_fen,
+                player_side=side,
+                opponent_side=opponent_side,
+                move=move,
+            )
+        )
+        if output_text:
+            return {
+                "opponent_side": opponent_side,
+                "move": self._extract_uci_move(output_text) or move,
+            }
         return {"opponent_side": opponent_side, "move": move}
+
+    def _build_user_prompt(
+        self,
+        *,
+        board_fen: str,
+        player_side: str,
+        opponent_side: str,
+        move: str,
+    ) -> str:
+        """构造对手走棋请求。"""
+        return (
+            f"当前棋盘 FEN：{board_fen}\n"
+            f"玩家方：{player_side}\n"
+            f"对手方：{opponent_side}\n"
+            f"本地兜底建议走法：{move}\n"
+            "请输出对手下一步的 UCI 走法。"
+        )
