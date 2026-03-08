@@ -1,15 +1,34 @@
 from __future__ import annotations
 
-import sqlite3
+from sqlalchemy import String, cast, create_engine, or_
+from sqlalchemy.orm import Session, sessionmaker
 
 from app.command.database import DB_PATH
+from app.model import Crop, CropInstance, LandPlot, Player
+
+SYNC_ENGINE = create_engine(
+    f"sqlite:///{DB_PATH}",
+    future=True,
+    connect_args={"check_same_thread": False},
+)
+SyncSessionLocal = sessionmaker(bind=SYNC_ENGINE, class_=Session)
 
 
-def _connect_db() -> sqlite3.Connection:
-    """创建只用于读取聊天辅助信息的 SQLite 连接。"""
-    conn = sqlite3.connect(DB_PATH)
-    conn.row_factory = sqlite3.Row
-    return conn
+def _query_player(session: Session, player_id: str) -> Player | None:
+    """按玩家ID、账号或昵称查询玩家记录。"""
+    if not player_id:
+        return None
+    return (
+        session.query(Player)
+        .filter(
+            or_(
+                cast(Player.id, String) == player_id,
+                Player.account == player_id,
+                Player.name == player_id,
+            )
+        )
+        .first()
+    )
 
 
 def read_player_info(player_id: str) -> str:
@@ -17,66 +36,44 @@ def read_player_info(player_id: str) -> str:
     if not player_id:
         return "未提供玩家标识，暂时无法读取玩家资料。"
 
-    with _connect_db() as conn:
-        row = conn.execute(
-            """
-            SELECT id, name, account, gold, level
-            FROM players
-            WHERE CAST(id AS TEXT) = ?
-               OR account = ?
-               OR name = ?
-            LIMIT 1
-            """,
-            (player_id, player_id, player_id),
-        ).fetchone()
+    with SyncSessionLocal() as session:
+        player = _query_player(session, player_id)
 
-    if row is None:
+    if player is None:
         return f"暂未找到玩家 {player_id} 的资料。"
 
     return (
-        f"玩家{row['name']}（ID：{row['id']}，账号：{row['account']}，"
-        f"等级：{row['level']}，金币：{row['gold']}）"
+        f"玩家{player.name}（ID：{player.id}，账号：{player.account}，"
+        f"等级：{player.level}，金币：{player.gold}）"
     )
 
 
 def read_player_farm_info(player_id: str) -> str:
     """读取当前玩家可查看的田地概况。"""
-    with _connect_db() as conn:
-        player_row = None
-        if player_id:
-            player_row = conn.execute(
-                """
-                SELECT name
-                FROM players
-                WHERE CAST(id AS TEXT) = ?
-                   OR account = ?
-                   OR name = ?
-                LIMIT 1
-                """,
-                (player_id, player_id, player_id),
-            ).fetchone()
-        rows = conn.execute(
-            """
-            SELECT lp.id,
-                   lp.name,
-                   lp.level,
-                   lp.growth_multiplier,
-                   c.name AS crop_name,
-                   ci.water,
-                   ci.fertility,
-                   ci.temperature
-            FROM land_plots AS lp
-            LEFT JOIN crop_instances AS ci ON ci.land_id = lp.id
-            LEFT JOIN crops AS c ON c.id = ci.crop_id
-            ORDER BY lp.id ASC
-            """
-        ).fetchall()
+    with SyncSessionLocal() as session:
+        player = _query_player(session, player_id)
+        rows = (
+            session.query(
+                LandPlot.id,
+                LandPlot.name,
+                LandPlot.level,
+                LandPlot.growth_multiplier,
+                Crop.name.label("crop_name"),
+                CropInstance.water,
+                CropInstance.fertility,
+                CropInstance.temperature,
+            )
+            .outerjoin(CropInstance, CropInstance.land_id == LandPlot.id)
+            .outerjoin(Crop, Crop.id == CropInstance.crop_id)
+            .order_by(LandPlot.id.asc())
+            .all()
+        )
 
     if not rows:
         return "当前还没有初始化任何田地数据。"
 
-    owner_name = player_row["name"] if player_row is not None else player_id or "当前玩家"
-    planted_rows = [row for row in rows if row["crop_name"]]
+    owner_name = player.name if player is not None else (player_id if player_id else "当前玩家")
+    planted_rows = [row for row in rows if row.crop_name]
     empty_count = len(rows) - len(planted_rows)
 
     parts = [
@@ -87,8 +84,8 @@ def read_player_farm_info(player_id: str) -> str:
         samples = []
         for row in planted_rows[:3]:
             samples.append(
-                f"{row['name']}正在种植{row['crop_name']}，"
-                f"水分{row['water']:.1f}、肥力{row['fertility']:.1f}、温度{row['temperature']:.1f}℃"
+                f"{row.name}正在种植{row.crop_name}，"
+                f"水分{row.water:.1f}、肥力{row.fertility:.1f}、温度{row.temperature:.1f}℃"
             )
         parts.append("已种植地块：" + "；".join(samples))
     else:

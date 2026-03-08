@@ -7,6 +7,12 @@ from langgraph.graph import END, START, StateGraph
 
 from app.agent.base import AIAssistantBase
 
+# 聊天记忆只保留最近 8 条，避免回复中上下文过长，同时足够覆盖最近几轮连续对话。
+CHAT_MEMORY_WINDOW = 8
+PLAYER_INFO_KEYWORDS = ("玩家信息", "玩家资料", "我的资料", "我的信息", "等级", "金币", "账号", "昵称")
+FARM_INFO_KEYWORDS = ("田地", "农田", "土地", "地块", "农场", "作物", "庄稼", "收成", "种植")
+GAME_GUIDE_KEYWORDS = ("攻略", "技巧", "建议", "怎么玩", "如何", "怎么", "帮助", "扫雷", "国际象棋", "下棋", "开局")
+
 
 class ChatAgentState(TypedDict, total=False):
     """聊天 agent 在 LangGraph 中流转的状态。"""
@@ -116,7 +122,7 @@ class ChatAssistant(AIAssistantBase):
     def _remember_history(self, state: ChatAgentState) -> ChatAgentState:
         """整理近期历史对话，作为短期记忆输入。"""
         history = state.get("history") or []
-        memories = "；".join(history[-8:]) if history else "我们还没有历史聊天记录。"
+        memories = "；".join(history[-CHAT_MEMORY_WINDOW:]) if history else "我们还没有历史聊天记录。"
         return {"memories": memories}
 
     def _decide_tools(self, state: ChatAgentState) -> ChatAgentState:
@@ -183,7 +189,7 @@ class ChatAssistant(AIAssistantBase):
             f"我记得你最近说过：{memories}。",
             f"你刚才说：{message}。",
         ]
-        if tool_outputs and set(tool_outputs) == {"game_guide"}:
+        if len(tool_outputs) == 1 and "game_guide" in tool_outputs:
             parts.append(f"给你一个相关建议：{tool_outputs['game_guide']}")
         elif tool_text:
             parts.append(f"我帮你查到这些信息：{tool_text}")
@@ -219,17 +225,14 @@ class ChatAssistant(AIAssistantBase):
     @staticmethod
     def _needs_player_info(message: str) -> bool:
         """判断本轮消息是否需要读取玩家信息。"""
-        return any(keyword in message for keyword in ("玩家信息", "玩家资料", "我的资料", "我的信息", "等级", "金币", "账号", "昵称"))
+        return any(keyword in message for keyword in PLAYER_INFO_KEYWORDS)
 
     @staticmethod
     def _needs_farm_info(message: str) -> bool:
         """判断本轮消息是否需要读取田地信息。"""
-        return any(keyword in message for keyword in ("田地", "农田", "土地", "地块", "农场", "作物", "庄稼", "收成", "种植"))
+        return any(keyword in message for keyword in FARM_INFO_KEYWORDS)
 
     @staticmethod
     def _needs_game_guide(message: str) -> bool:
         """判断本轮消息是否需要检索游戏攻略。"""
-        return any(
-            keyword in message
-            for keyword in ("攻略", "技巧", "建议", "怎么玩", "如何", "怎么", "帮助", "扫雷", "国际象棋", "下棋", "开局")
-        )
+        return any(keyword in message for keyword in GAME_GUIDE_KEYWORDS)
