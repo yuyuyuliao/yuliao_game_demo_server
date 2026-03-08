@@ -1,4 +1,5 @@
 import re
+from types import SimpleNamespace
 
 from fastapi.testclient import TestClient
 
@@ -40,6 +41,47 @@ def test_record_and_daily_chat():
     response = daily.json()["response"]
     assert "我记得你最近说过" in response
     assert "给你一个相关建议" in response
+
+
+def test_chat_assistant_calls_openai_client():
+    captured = {}
+
+    class FakeResponses:
+        def create(self, **kwargs):
+            captured.update(kwargs)
+            return SimpleNamespace(output_text="这是来自 OpenAI 的回复")
+
+    assistant = ChatAssistant(
+        system_prompt="你是测试助手",
+        model_name="gpt-4o-mini",
+        knowledge_search=lambda message, n_results=1: [f"知识：{message}"],
+        openai_client=SimpleNamespace(responses=FakeResponses()),
+    )
+
+    result = assistant.reply(["之前聊过种地"], "给我一个建议")
+
+    assert result == {"response": "这是来自 OpenAI 的回复"}
+    assert captured["model"] == "gpt-4o-mini"
+    assert captured["instructions"] == "你是测试助手"
+    assert "之前聊过种地" in captured["input"]
+    assert "给我一个建议" in captured["input"]
+    assert "知识：给我一个建议" in captured["input"]
+
+
+def test_chat_assistant_falls_back_when_openai_call_fails():
+    class FakeResponses:
+        def create(self, **kwargs):
+            raise RuntimeError("network error")
+
+    assistant = ChatAssistant(
+        knowledge_search=lambda message, n_results=1: ["先深呼吸再继续"],
+        openai_client=SimpleNamespace(responses=FakeResponses()),
+    )
+
+    result = assistant.reply(["我今天有点紧张"], "怎么放松")
+
+    assert "我记得你最近说过：我今天有点紧张" in result["response"]
+    assert "给你一个相关建议：先深呼吸再继续" in result["response"]
 
 
 def test_game_suggestion_endpoints():

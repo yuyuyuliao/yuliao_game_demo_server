@@ -1,5 +1,7 @@
 from __future__ import annotations
 
+import os
+
 from sqlalchemy import select
 
 from app.agent import ChatAssistant
@@ -10,7 +12,7 @@ from app.prompt import CHAT_SYSTEM_PROMPT
 
 chat_assistant = ChatAssistant(
     system_prompt=CHAT_SYSTEM_PROMPT,
-    model_name="chat-model-v1",
+    model_name=os.getenv("OPENAI_CHAT_MODEL", "gpt-4o-mini"),
     knowledge_search=knowledge_store.search,
 )
 

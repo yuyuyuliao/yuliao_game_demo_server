@@ -8,6 +8,16 @@
 pip install -r requirements.txt
 ```
 
+## OpenAI 聊天配置
+
+`app/agent/chat_agent.py` 现在会优先通过官方 `openai` Python SDK 调用模型生成聊天回复。运行前可按需配置以下环境变量：
+
+- `OPENAI_API_KEY`：OpenAI API Key，配置后 `/chat/daily` 会优先走真实模型调用。
+- `OPENAI_CHAT_MODEL`：聊天模型名，默认 `gpt-4o-mini`。
+- `OPENAI_BASE_URL`：可选，自定义 OpenAI 兼容网关地址。
+
+如果未配置 `OPENAI_API_KEY`，服务会继续使用本地兜底回复，方便本地开发和测试。
+
 ## 数据库迁移与初始化
 
 项目默认使用 SQLite，数据目录位于 `app/data/`：
