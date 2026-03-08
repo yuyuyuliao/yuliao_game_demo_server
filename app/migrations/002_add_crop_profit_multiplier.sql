@@ -1,1 +1,1 @@
-ALTER TABLE crops ADD COLUMN profit_multiplier REAL NOT NULL DEFAULT 1.0;
+ALTER TABLE crops ADD COLUMN profit_price INTEGER NOT NULL;

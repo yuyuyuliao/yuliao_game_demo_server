@@ -19,5 +19,5 @@ class Crop(BaseModel):
     price: Mapped[int] = mapped_column(Integer, nullable=False)
     # 描述，非空
     description: Mapped[str] = mapped_column(String, nullable=False)
-    # 获利倍数，非空
-    profit_multiplier: Mapped[float] = mapped_column(Float, nullable=False)
+    # 获利，非空
+    profit_price: Mapped[int] = mapped_column(Integer, nullable=False)

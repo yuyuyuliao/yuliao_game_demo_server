@@ -13,6 +13,8 @@ class LandPlot(BaseModel):
 
     # 价格
     price: Mapped[int] = mapped_column(Integer, nullable=False)
+    # 名称
+    name: Mapped[str] = mapped_column(String, nullable=False, unique=True)
     # 描述
     description: Mapped[str] = mapped_column(String, nullable=False)
     # 级别
