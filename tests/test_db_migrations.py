@@ -7,7 +7,7 @@ import sys
 from pathlib import Path
 
 from app.command.database import DB_PATH, init_db
-from app.model import BaseModel, ChatHistory, Crop, CropInstance, LandPlot
+from app.model import BaseModel, ChatHistory, Crop, CropInstance, LandPlot, Player
 
 
 REPO_ROOT = Path(__file__).resolve().parents[1]
@@ -21,7 +21,8 @@ def test_init_db_runs_migrations_only(tmp_path: Path):
     assert LandPlot.__tablename__ == "land_plots"
     assert Crop.__tablename__ == "crops"
     assert CropInstance.__tablename__ == "crop_instances"
-    assert set(BaseModel.metadata.tables) == {"chat_history", "land_plots", "crops", "crop_instances"}
+    assert Player.__tablename__ == "players"
+    assert set(BaseModel.metadata.tables) == {"chat_history", "land_plots", "crops", "crop_instances", "players"}
 
     init_db(db_path)
     init_db(db_path)
@@ -33,15 +34,21 @@ def test_init_db_runs_migrations_only(tmp_path: Path):
                 "SELECT name FROM sqlite_master WHERE type='table' AND name NOT LIKE 'sqlite_%'"
             ).fetchall()
         }
-        assert table_names == {"chat_history", "land_plots", "crops", "crop_instances"}
-        assert conn.execute("PRAGMA user_version").fetchone()[0] == 2
+        assert table_names == {"chat_history", "land_plots", "crops", "crop_instances", "players"}
+        assert conn.execute("PRAGMA user_version").fetchone()[0] == 3
         crop_columns = {
             row[1]
             for row in conn.execute("PRAGMA table_info(crops)").fetchall()
         }
-        assert "profit_multiplier" in crop_columns
+        assert "profit_price" in crop_columns
+        player_columns = {
+            row[1]
+            for row in conn.execute("PRAGMA table_info(players)").fetchall()
+        }
+        assert player_columns == {"id", "name", "account", "password", "gold", "level"}
         assert conn.execute("SELECT COUNT(*) FROM land_plots").fetchone()[0] == 0
         assert conn.execute("SELECT COUNT(*) FROM crops").fetchone()[0] == 0
+        assert conn.execute("SELECT COUNT(*) FROM players").fetchone()[0] == 0
 
 
 def test_seed_script_inserts_default_farm_data_once(tmp_path: Path):
@@ -56,7 +63,7 @@ def test_seed_script_inserts_default_farm_data_once(tmp_path: Path):
 
     with sqlite3.connect(db_path) as conn:
         assert conn.execute("SELECT COUNT(*) FROM land_plots").fetchone()[0] == 6
-        assert conn.execute("SELECT COUNT(*) FROM crops").fetchone()[0] == 3
+        assert conn.execute("SELECT COUNT(*) FROM crops").fetchone()[0] == 6
 
     subprocess.run(
         [sys.executable, str(SCRIPT_PATH), "--db-path", str(db_path)],
@@ -66,7 +73,7 @@ def test_seed_script_inserts_default_farm_data_once(tmp_path: Path):
 
     with sqlite3.connect(db_path) as conn:
         assert conn.execute("SELECT COUNT(*) FROM land_plots").fetchone()[0] == 6
-        assert conn.execute("SELECT COUNT(*) FROM crops").fetchone()[0] == 3
+        assert conn.execute("SELECT COUNT(*) FROM crops").fetchone()[0] == 6
 
 
 def test_seed_script_default_db_path_is_game_db():
