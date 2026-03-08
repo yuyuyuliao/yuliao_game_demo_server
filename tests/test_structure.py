@@ -4,7 +4,7 @@ from app.agent import (
     ChessSuggestAssistant,
     MinesweeperAssistant,
 )
-from app.model import BaseModel, ChatHistory, Crop, CropInstance, LandPlot
+from app.model import BaseModel, ChatHistory, Crop, CropInstance, LandPlot, Player
 from app.prompt import (
     CHAT_SYSTEM_PROMPT,
     CHESS_OPPONENT_SYSTEM_PROMPT,
@@ -30,10 +30,11 @@ def test_database_table_models_define_expected_fields():
     assert issubclass(LandPlot, BaseModel)
     assert issubclass(Crop, BaseModel)
     assert issubclass(CropInstance, BaseModel)
+    assert issubclass(Player, BaseModel)
 
     assert set(ChatHistory.__table__.columns.keys()) == {"player_id", "text", "created_at", "id"}
-    assert set(LandPlot.__table__.columns.keys()) == {"price", "description", "level", "growth_multiplier", "id"}
-    assert set(Crop.__table__.columns.keys()) == {"name", "growth_seconds", "price", "description", "profit_multiplier", "id"}
+    assert set(LandPlot.__table__.columns.keys()) == {"price", "name", "description", "level", "growth_multiplier", "id"}
+    assert set(Crop.__table__.columns.keys()) == {"name", "growth_seconds", "price", "description", "profit_price", "id"}
     assert set(CropInstance.__table__.columns.keys()) == {
         "land_id",
         "crop_id",
@@ -44,3 +45,4 @@ def test_database_table_models_define_expected_fields():
         "temperature",
         "id",
     }
+    assert set(Player.__table__.columns.keys()) == {"name", "account", "password", "gold", "level", "id"}
