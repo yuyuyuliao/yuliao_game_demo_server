@@ -12,7 +12,7 @@ REPO_ROOT = Path(__file__).resolve().parents[1]
 if str(REPO_ROOT) not in sys.path:
     sys.path.insert(0, str(REPO_ROOT))
 
-from app.command.database import build_database_url, create_session_factory, init_db_async
+from app.command.database import DB_PATH, build_database_url, create_session_factory, init_db_async
 from app.model import Crop, LandPlot
 
 
@@ -57,11 +57,16 @@ async def seed_farm_data(db_path: Path) -> None:
         await engine.dispose()
 
 
+def parse_args(argv: list[str] | None = None) -> argparse.Namespace:
+    """解析命令行参数。"""
+    parser = argparse.ArgumentParser(description="写入农场默认数据")
+    parser.add_argument("--db-path", type=Path, default=DB_PATH)
+    return parser.parse_args(argv)
+
+
 def main() -> None:
     """解析命令行参数并执行默认数据写入。"""
-    parser = argparse.ArgumentParser(description="写入农场默认数据")
-    parser.add_argument("--db-path", type=Path, default=REPO_ROOT / "app" / "data" / "game.db")
-    args = parser.parse_args()
+    args = parse_args()
     asyncio.run(seed_farm_data(args.db_path))
 
 
