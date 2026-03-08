@@ -4,9 +4,13 @@ import sqlite3
 import subprocess
 import sys
 from pathlib import Path
+from unittest.mock import patch
 
+import pytest
 from fastapi.testclient import TestClient
 
+from app.agent import ChatAssistant
+from app.agent.chat_agent import DEFAULT_EMPTY_MEMORIES
 from app.command.chat_tools import read_player_farm_info, read_player_info
 from app.main import DB_PATH, _init_db, app
 
@@ -73,6 +77,44 @@ def test_chat_tools_can_read_player_and_farm_info():
     assert "金币：520" in player_info
     assert "阿苗当前可查看" in farm_info
     assert "胡萝卜" in farm_info
+
+
+def test_chat_agent_uses_model_judgement_to_select_tools():
+    assistant = ChatAssistant()
+    captured_prompts: list[str] = []
+
+    def fake_call_openai(prompt: str) -> str:
+        captured_prompts.append(prompt)
+        return '{"player_info": true, "farm_info": true, "game_guide": true}'
+
+    with patch.object(assistant, "_call_openai", side_effect=fake_call_openai):
+        result = assistant._decide_tools(
+            {
+                "message": "我想看看现在账号发展得怎么样，顺便讲讲地里长势，再给点新手入门方向。",
+                "memories": "上轮我们提过胡萝卜和仓库。",
+            }
+        )
+
+    assert result["requested_tools"] == ["player_info", "farm_info", "game_guide"]
+    assert captured_prompts
+    assert "上轮我们提过胡萝卜和仓库" in captured_prompts[0]
+    assert "新手入门方向" in captured_prompts[0]
+
+
+def test_chat_agent_falls_back_when_tool_judgement_model_unavailable(caplog: pytest.LogCaptureFixture):
+    assistant = ChatAssistant()
+
+    caplog.clear()
+    with patch.object(assistant, "_call_openai", return_value=None):
+        result = assistant._decide_tools(
+            {
+                "message": "请告诉我我的玩家信息、田地情况，再给我一点胡萝卜攻略。",
+                "memories": DEFAULT_EMPTY_MEMORIES,
+            }
+        )
+
+    assert result["requested_tools"] == ["player_info", "farm_info", "game_guide"]
+    assert "聊天工具判定模型不可用或返回无效结果，已回退到本地规则。" in caplog.text
 
 
 def test_daily_chat_can_use_tools_and_remember_previous_talk():
