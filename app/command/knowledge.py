@@ -20,10 +20,13 @@ class KnowledgeStore:
             try:
                 client = chromadb.PersistentClient(path=CHROMA_PATH)
                 self._collection = client.get_or_create_collection("game_knowledge")
-                if self._collection.count() == 0 and self._docs:
+                if self._docs:
                     ids = list(self._docs.keys())
                     docs = [self._docs[i] for i in ids]
-                    self._collection.add(ids=ids, documents=docs)
+                    if hasattr(self._collection, "upsert"):
+                        self._collection.upsert(ids=ids, documents=docs)
+                    elif self._collection.count() == 0:
+                        self._collection.add(ids=ids, documents=docs)
             except Exception:
                 self._collection = None
 
@@ -37,12 +40,14 @@ class KnowledgeStore:
             except Exception:
                 pass
 
-        keywords = set(query.lower().split())
-        ranked = sorted(
-            self._docs.values(),
-            key=lambda doc: sum(1 for keyword in keywords if keyword and keyword in doc.lower()),
-            reverse=True,
-        )
+        keywords = {keyword for keyword in query.lower().split() if keyword}
+        if not keywords:
+            return []
+        scored_docs = [
+            (sum(1 for keyword in keywords if keyword in doc.lower()), doc)
+            for doc in self._docs.values()
+        ]
+        ranked = [doc for score, doc in sorted(scored_docs, key=lambda item: item[0], reverse=True) if score > 0]
         return ranked[:n_results]
 
 
