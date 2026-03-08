@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import json
 from typing import Any, Callable, Optional, TypedDict
 
 from langchain.tools import tool
@@ -134,12 +135,16 @@ class ChatAssistant(AIAssistantBase):
     def _decide_tools(self, state: ChatAgentState) -> ChatAgentState:
         """根据玩家问题内容决定是否需要触发工具。"""
         message = state.get("message", "")
+        memories = state.get("memories", "我们还没有历史聊天记录。")
+        tool_decisions = self._decide_tools_with_model(message=message, memories=memories)
+        if tool_decisions is None:
+            tool_decisions = self._fallback_tool_decisions(message)
         requested_tools: list[str] = []
-        if self._needs_player_info(message):
+        if self._needs_player_info(tool_decisions):
             requested_tools.append("player_info")
-        if self._needs_farm_info(message):
+        if self._needs_farm_info(tool_decisions):
             requested_tools.append("farm_info")
-        if self._needs_game_guide(message):
+        if self._needs_game_guide(tool_decisions):
             requested_tools.append("game_guide")
         return {"requested_tools": requested_tools}
 
@@ -214,6 +219,24 @@ class ChatAssistant(AIAssistantBase):
             "请用自然、简洁、友好的中文直接回复玩家；如工具已返回信息，请优先结合工具结果帮助玩家。"
         )
 
+    def _build_tool_decision_prompt(self, *, memories: str, message: str) -> str:
+        """将上下文整理成工具选择提示词，让模型判断本轮是否需要查资料。"""
+        return (
+            "请判断当前玩家消息是否需要调用工具，并只返回 JSON 对象，不要输出额外解释。\n"
+            "可选字段只有：player_info、farm_info、game_guide。\n"
+            "字段含义如下：\n"
+            "- player_info：需要查询玩家昵称、账号、等级、金币等基础资料时为 true。\n"
+            "- farm_info：需要查询田地、作物、种植状态等农场信息时为 true。\n"
+            "- game_guide：需要查询玩法攻略、技巧、入门建议时为 true。\n"
+            "判断要求：\n"
+            "1. 普通寒暄、情绪安慰、回忆历史聊天时，通常都应为 false。\n"
+            "2. 如果玩家在一句话里同时需要多个工具，可以同时返回多个 true。\n"
+            "3. 结合最近聊天理解代词、省略和上下文。\n"
+            f"最近聊天：{memories}\n"
+            f"玩家当前消息：{message}\n"
+            '请仅返回类似 {"player_info": false, "farm_info": true, "game_guide": false} 的 JSON。'
+        )
+
     @staticmethod
     def _build_tool_text(tool_outputs: dict[str, str]) -> str:
         """将各个工具的结果整理成便于回复的文字。"""
@@ -230,20 +253,62 @@ class ChatAssistant(AIAssistantBase):
             if value
         )
 
-    @staticmethod
-    def _needs_player_info(message: str) -> bool:
-        """判断本轮消息是否需要读取玩家信息。"""
-        return ChatAssistant._contains_positive_keyword(message, PLAYER_INFO_KEYWORDS)
+    def _decide_tools_with_model(self, *, message: str, memories: str) -> dict[str, bool] | None:
+        """优先交给模型做工具选择，失败时返回 None 走本地兜底。"""
+        output_text = self._call_openai(self._build_tool_decision_prompt(memories=memories, message=message))
+        if not output_text:
+            return None
+        return self._parse_tool_decisions(output_text)
 
     @staticmethod
-    def _needs_farm_info(message: str) -> bool:
-        """判断本轮消息是否需要读取田地信息。"""
-        return ChatAssistant._contains_positive_keyword(message, FARM_INFO_KEYWORDS)
+    def _parse_tool_decisions(output_text: str) -> dict[str, bool] | None:
+        """解析模型返回的工具判断 JSON。"""
+        try:
+            payload = json.loads(output_text)
+        except json.JSONDecodeError:
+            return None
+        return {
+            tool_name: ChatAssistant._normalize_decision_flag(payload.get(tool_name))
+            for tool_name in ("player_info", "farm_info", "game_guide")
+        }
 
     @staticmethod
-    def _needs_game_guide(message: str) -> bool:
-        """判断本轮消息是否需要检索游戏攻略。"""
-        return ChatAssistant._contains_positive_keyword(message, GAME_GUIDE_KEYWORDS)
+    def _normalize_decision_flag(value: object) -> bool:
+        """把模型返回的字段值规整为布尔值。"""
+        if isinstance(value, bool):
+            return value
+        if isinstance(value, (int, float)):
+            return value != 0
+        if isinstance(value, str):
+            return value.strip().lower() in {"true", "1", "yes", "y", "是"}
+        return False
+
+    @staticmethod
+    def _needs_player_info(tool_decisions: dict[str, bool]) -> bool:
+        """根据模型判定结果决定是否需要读取玩家信息。"""
+        return bool(tool_decisions.get("player_info"))
+
+    @staticmethod
+    def _needs_farm_info(tool_decisions: dict[str, bool]) -> bool:
+        """根据模型判定结果决定是否需要读取田地信息。"""
+        return bool(tool_decisions.get("farm_info"))
+
+    @staticmethod
+    def _needs_game_guide(tool_decisions: dict[str, bool]) -> bool:
+        """根据模型判定结果决定是否需要检索游戏攻略。"""
+        return bool(tool_decisions.get("game_guide"))
+
+    @staticmethod
+    def _fallback_tool_decisions(message: str) -> dict[str, bool]:
+        """当模型暂时不可用时，使用旧规则兜底，避免工具能力整体失效。"""
+        return {
+            tool_name: ChatAssistant._contains_positive_keyword(message, keywords)
+            for tool_name, keywords in (
+                ("player_info", PLAYER_INFO_KEYWORDS),
+                ("farm_info", FARM_INFO_KEYWORDS),
+                ("game_guide", GAME_GUIDE_KEYWORDS),
+            )
+        }
 
     @staticmethod
     def _contains_positive_keyword(message: str, keywords: tuple[str, ...]) -> bool:
