@@ -8,6 +8,11 @@ try:
 except Exception:  # pragma: no cover - fallback when chromadb is unavailable
     chromadb = None
 
+import logging
+
+logger = logging.getLogger(__name__)
+MIN_KEYWORD_LENGTH = 2
+
 
 class KnowledgeStore:
     """知识检索封装：优先使用 Chroma，失败时回退到关键词匹配。"""
@@ -27,7 +32,11 @@ class KnowledgeStore:
                         self._collection.upsert(ids=ids, documents=docs)
                     elif self._collection.count() == 0:
                         self._collection.add(ids=ids, documents=docs)
-                    # 旧版本 collection 若既不支持 upsert 又已有数据，则保留已有向量内容并继续使用关键词兜底检索。
+                    else:
+                        logger.warning(
+                            "Existing Chroma collection does not support upsert; "
+                            "new knowledge documents may require clearing the collection to resync."
+                        )
             except Exception:
                 self._collection = None
 
@@ -41,7 +50,7 @@ class KnowledgeStore:
             except Exception:
                 pass
 
-        keywords = {keyword for keyword in query.lower().split() if len(keyword) > 1}
+        keywords = {keyword for keyword in query.lower().split() if len(keyword) >= MIN_KEYWORD_LENGTH}
         if not keywords:
             return []
         scored_docs = [

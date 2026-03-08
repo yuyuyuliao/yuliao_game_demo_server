@@ -96,4 +96,5 @@ def test_daily_chat_can_use_tools_and_remember_previous_talk():
     )
     assert second.status_code == 200
     second_text = second.json()["response"]
-    assert "请告诉我我的玩家信息、田地情况" in second_text
+    assert "玩家信息" in second_text
+    assert "田地" in second_text

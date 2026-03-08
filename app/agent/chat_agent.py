@@ -7,11 +7,17 @@ from langgraph.graph import END, START, StateGraph
 
 from app.agent.base import AIAssistantBase
 
-# 聊天记忆只保留最近 8 条，避免回复中上下文过长，同时足够覆盖最近几轮连续对话。
+# 最近 8 条历史文本通常足够覆盖几轮连续对话，同时能避免兜底回复里塞入过长上下文。
 CHAT_MEMORY_WINDOW = 8
 PLAYER_INFO_KEYWORDS = ("玩家信息", "玩家资料", "我的资料", "我的信息", "等级", "金币", "账号", "昵称")
 FARM_INFO_KEYWORDS = ("田地", "农田", "土地", "地块", "农场", "作物", "庄稼", "收成", "种植")
 GAME_GUIDE_KEYWORDS = ("攻略", "技巧", "建议", "怎么玩", "如何", "怎么", "帮助", "扫雷", "国际象棋", "下棋", "开局")
+NEGATION_PREFIXES = ("不需要", "不用", "不要", "别")
+TOOL_INPUT_FIELD_MAP = {
+    "player_info": "player_id",
+    "farm_info": "player_id",
+    "game_guide": "query",
+}
 
 
 class ChatAgentState(TypedDict, total=False):
@@ -149,10 +155,12 @@ class ChatAssistant(AIAssistantBase):
             tool_instance = self._tool_map.get(tool_name)
             if tool_instance is None:
                 continue
-            if tool_name == "game_guide":
-                outputs[tool_name] = tool_instance.invoke({"query": state.get("message", "")})
-                continue
-            outputs[tool_name] = tool_instance.invoke({"player_id": state.get("player_id", "")})
+            input_field = TOOL_INPUT_FIELD_MAP.get(tool_name)
+            if input_field == "query":
+                tool_input = {input_field: state.get("message", "")}
+            else:
+                tool_input = {input_field: state.get("player_id", "")} if input_field else {}
+            outputs[tool_name] = tool_instance.invoke(tool_input)
         return {"tool_outputs": outputs}
 
     def _generate_reply(self, state: ChatAgentState) -> ChatAgentState:
@@ -225,14 +233,22 @@ class ChatAssistant(AIAssistantBase):
     @staticmethod
     def _needs_player_info(message: str) -> bool:
         """判断本轮消息是否需要读取玩家信息。"""
-        return any(keyword in message for keyword in PLAYER_INFO_KEYWORDS)
+        return ChatAssistant._contains_positive_keyword(message, PLAYER_INFO_KEYWORDS)
 
     @staticmethod
     def _needs_farm_info(message: str) -> bool:
         """判断本轮消息是否需要读取田地信息。"""
-        return any(keyword in message for keyword in FARM_INFO_KEYWORDS)
+        return ChatAssistant._contains_positive_keyword(message, FARM_INFO_KEYWORDS)
 
     @staticmethod
     def _needs_game_guide(message: str) -> bool:
         """判断本轮消息是否需要检索游戏攻略。"""
-        return any(keyword in message for keyword in GAME_GUIDE_KEYWORDS)
+        return ChatAssistant._contains_positive_keyword(message, GAME_GUIDE_KEYWORDS)
+
+    @staticmethod
+    def _contains_positive_keyword(message: str, keywords: tuple[str, ...]) -> bool:
+        """简单过滤明显否定表达，减少工具误触发。"""
+        return any(
+            keyword in message and all(f"{prefix}{keyword}" not in message for prefix in NEGATION_PREFIXES)
+            for keyword in keywords
+        )

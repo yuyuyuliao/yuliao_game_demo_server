@@ -1,6 +1,6 @@
 from __future__ import annotations
 
-from sqlalchemy import String, cast, create_engine, or_
+from sqlalchemy import create_engine, or_
 from sqlalchemy.orm import Session, sessionmaker
 
 from app.command.database import DB_PATH
@@ -18,17 +18,12 @@ def _query_player(session: Session, player_id: str) -> Player | None:
     """按玩家ID、账号或昵称查询玩家记录。"""
     if not player_id:
         return None
-    return (
-        session.query(Player)
-        .filter(
-            or_(
-                cast(Player.id, String) == player_id,
-                Player.account == player_id,
-                Player.name == player_id,
-            )
-        )
-        .first()
-    )
+    player = None
+    if player_id.isdigit():
+        player = session.query(Player).filter(Player.id == int(player_id)).first()
+    if player is not None:
+        return player
+    return session.query(Player).filter(or_(Player.account == player_id, Player.name == player_id)).first()
 
 
 def read_player_info(player_id: str) -> str:
