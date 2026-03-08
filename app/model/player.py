@@ -15,7 +15,7 @@ class Player(BaseModel):
     name: Mapped[str] = mapped_column(String, nullable=False)
     # 账号，唯一且非空
     account: Mapped[str] = mapped_column(String, nullable=False, unique=True)
-    # 密码，非空
+    # 密码哈希，非空
     password: Mapped[str] = mapped_column(String, nullable=False)
     # 金币，非空，默认 0
     gold: Mapped[int] = mapped_column(Integer, nullable=False, default=0)
