@@ -205,18 +205,15 @@ class ChatAssistant(AIAssistantBase):
         tool_outputs: dict[str, str],
         tool_text: str,
     ) -> str:
-        """在未调用大模型时，使用记忆与工具结果拼装回复。"""
-        parts = [
-            f"我记得你最近说过：{memories}。",
-            f"你刚才说：{message}。",
-        ]
-        if len(tool_outputs) == 1 and "game_guide" in tool_outputs:
-            parts.append(f"给你一个相关建议：{tool_outputs['game_guide']}")
-        elif tool_text:
-            parts.append(f"我帮你查到这些信息：{tool_text}")
-        else:
-            parts.append("这次先陪你轻松聊聊，如果你想查资料、田地或游戏攻略也可以直接告诉我。")
-        return "".join(parts)
+        """在未调用大模型时，尽量直接返回已经得到的结论，避免生硬套话。"""
+        guide_text = tool_outputs.get("game_guide")
+        if len(tool_outputs) == 1 and guide_text:
+            return guide_text
+        if tool_text:
+            return tool_text
+        if memories and memories != DEFAULT_EMPTY_MEMORIES:
+            return memories
+        return "想聊什么就继续告诉我吧。"
 
     def _build_user_prompt(self, *, memories: str, message: str, tool_text: str) -> str:
         """将聊天历史与工具结果整理为发送给 OpenAI 的用户输入。"""

@@ -39,8 +39,9 @@ def test_record_and_daily_chat():
     )
     assert daily.status_code == 200
     response = daily.json()["response"]
-    assert "我记得你最近说过" in response
-    assert "给你一个相关建议" in response
+    assert response
+    assert "我记得你最近说过" not in response
+    assert "给你一个相关建议" not in response
 
 
 def test_chat_assistant_calls_openai_client():
@@ -80,8 +81,19 @@ def test_chat_assistant_falls_back_when_openai_call_fails():
 
     result = assistant.reply(["我今天有点紧张"], "怎么放松")
 
-    assert "我记得你最近说过：我今天有点紧张" in result["response"]
-    assert "给你一个相关建议：先深呼吸再继续" in result["response"]
+    assert result["response"] == "先深呼吸再继续"
+
+
+def test_chat_assistant_fallback_returns_memory_directly_without_fixed_phrase():
+    assistant = ChatAssistant(openai_client=None)
+
+    result = assistant.reply(
+        ["玩家：请告诉我我的玩家信息", "助手：玩家信息：昵称阿苗，等级 8"],
+        "你还记得我刚才问了什么吗",
+    )
+
+    assert "玩家信息" in result["response"]
+    assert "我记得你最近说过" not in result["response"]
 
 
 def test_non_chat_assistants_can_call_openai_client():
