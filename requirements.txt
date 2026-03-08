@@ -7,3 +7,5 @@ openai==2.26.0
 pytest==8.4.2
 SQLAlchemy==2.0.43
 aiosqlite==0.21.0
+langchain==1.2.10
+langgraph==1.0.10

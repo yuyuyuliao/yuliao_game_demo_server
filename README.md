@@ -10,7 +10,7 @@ pip install -r requirements.txt
 
 ## OpenAI 聊天配置
 
-`app/agent/chat_agent.py` 现在会优先通过官方 `openai` Python SDK 调用模型生成聊天回复。运行前可按需配置以下环境变量：
+`app/agent/chat_agent.py` 现在基于 LangChain + LangGraph 编排聊天流程，会优先通过官方 `openai` Python SDK 调用模型生成聊天回复，并可按需调用玩家资料、田地资料与游戏攻略查询工具。运行前可按需配置以下环境变量：
 
 - `OPENAI_API_KEY`：OpenAI API Key，配置后 `/chat/daily` 会优先走真实模型调用。
 - `OPENAI_CHAT_MODEL`：聊天模型名，默认 `gpt-4o-mini`。
@@ -99,7 +99,7 @@ uvicorn app.main:app --reload
 
 - `GET /health`：健康检查
 - `POST /chat/record`：记录玩家聊天内容（SQLite）
-- `POST /chat/daily`：读取玩家历史聊天，返回有记忆的日常对话
+- `POST /chat/daily`：读取玩家历史聊天，返回有记忆的日常对话，并可按需查询玩家信息、田地信息和知识库攻略
 - `POST /minesweeper/suggest`：根据扫雷棋盘给出下一步建议
 - `POST /chess/suggest`：根据国际象棋局面给出下一步建议
 - `POST /chess/opponent-move`：根据当前局面，作为对手给出下一步落位

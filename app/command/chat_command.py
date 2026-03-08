@@ -7,13 +7,19 @@ from sqlalchemy import select
 from app.agent import ChatAssistant
 from app.command.database import AsyncSessionLocal
 from app.command.knowledge import knowledge_store
+from app.command.chat_tools import read_player_farm_info, read_player_info
 from app.model import ChatHistory
 from app.prompt import CHAT_SYSTEM_PROMPT
+
+PLAYER_HISTORY_PREFIX = "玩家："
+ASSISTANT_HISTORY_PREFIX = "助手："
 
 chat_assistant = ChatAssistant(
     system_prompt=CHAT_SYSTEM_PROMPT,
     model_name=os.getenv("OPENAI_CHAT_MODEL", "gpt-4o-mini"),
     knowledge_search=knowledge_store.search,
+    player_info_reader=read_player_info,
+    farm_info_reader=read_player_farm_info,
 )
 
 
@@ -35,4 +41,8 @@ async def daily_chat(player_id: str, message: str) -> dict[str, str]:
             .limit(5)
         )
         history = list(rows.scalars().all())[::-1]
-    return chat_assistant.reply(history, message)
+        result = chat_assistant.reply(history, message, player_id=player_id)
+        session.add(ChatHistory(player_id=player_id, text=f"{PLAYER_HISTORY_PREFIX}{message}"))
+        session.add(ChatHistory(player_id=player_id, text=f"{ASSISTANT_HISTORY_PREFIX}{result['response']}"))
+        await session.commit()
+    return result
