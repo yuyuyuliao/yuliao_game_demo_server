@@ -84,6 +84,64 @@ def test_chat_assistant_falls_back_when_openai_call_fails():
     assert "给你一个相关建议：先深呼吸再继续" in result["response"]
 
 
+def test_non_chat_assistants_can_call_openai_client():
+    captured = []
+
+    class FakeResponses:
+        def create(self, **kwargs):
+            captured.append(kwargs)
+            prompt = kwargs["input"]
+            if "当前扫雷棋盘" in prompt:
+                return SimpleNamespace(output_text="open 1 2")
+            if "对手方" in prompt:
+                return SimpleNamespace(output_text="建议走 e7e5")
+            return SimpleNamespace(output_text="建议走 e2e4，优先控制中心")
+
+    fake_client = SimpleNamespace(responses=FakeResponses())
+
+    minesweeper = MinesweeperAssistant(openai_client=fake_client)
+    chess = ChessSuggestAssistant(openai_client=fake_client)
+    opponent = ChessOpponentAssistant(openai_client=fake_client)
+
+    ms_result = minesweeper.suggest([[0, "?", 1], [1, "X", 1], [0, 1, 0]])
+    chess_result = chess.suggest("rnbqkbnr/pppppppp/8/8/8/8/PPPPPPPP/RNBQKBNR w", side_to_move="white")
+    opponent_result = opponent.suggest(
+        "rnbqkbnr/pppppppp/8/8/8/8/PPPPPPPP/RNBQKBNR w",
+        player_side="white",
+    )
+
+    assert ms_result == {"action": "open", "row": 1, "col": 2, "reason": "open 1 2"}
+    assert chess_result == {"move": "e2e4", "reason": "建议走 e2e4，优先控制中心"}
+    assert opponent_result == {"opponent_side": "black", "move": "e7e5"}
+    assert len(captured) == 3
+    assert all(item["model"] == "demo-model" for item in captured)
+
+
+def test_non_chat_assistants_fall_back_when_openai_call_fails():
+    class FakeResponses:
+        def create(self, **kwargs):
+            raise RuntimeError("network error")
+
+    fake_client = SimpleNamespace(responses=FakeResponses())
+
+    minesweeper = MinesweeperAssistant(openai_client=fake_client)
+    chess = ChessSuggestAssistant(openai_client=fake_client)
+    opponent = ChessOpponentAssistant(openai_client=fake_client)
+
+    ms_result = minesweeper.suggest([[0, "?", 1], [1, "X", 1], [0, 1, 0]])
+    chess_result = chess.suggest("rnbqkbnr/pppppppp/8/8/8/8/PPPPPPPP/RNBQKBNR b", side_to_move="black")
+    opponent_result = opponent.suggest(
+        "rnbqkbnr/pppppppp/8/8/8/8/PPPPPPPP/RNBQKBNR w",
+        player_side="white",
+    )
+
+    assert ms_result["action"] == "open"
+    assert ms_result["row"] == 0
+    assert ms_result["col"] == 1
+    assert chess_result == {"move": "e7e5", "reason": "控制中心并发展子力"}
+    assert opponent_result == {"opponent_side": "black", "move": "e7e5"}
+
+
 def test_game_suggestion_endpoints():
     ms = client.post(
         "/minesweeper/suggest",
