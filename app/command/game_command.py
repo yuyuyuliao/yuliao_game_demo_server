@@ -10,7 +10,7 @@ from app.prompt import (
     MINESWEEPER_SYSTEM_PROMPT,
 )
 
-MODEL_NAME = "qwen2.5:3b"
+MODEL_NAME = "qwen3:1.7b"
 minesweeper_assistant = MinesweeperAssistant(
     system_prompt=MINESWEEPER_SYSTEM_PROMPT,
     model_name=MODEL_NAME,

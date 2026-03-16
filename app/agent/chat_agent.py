@@ -54,6 +54,7 @@ class ChatAssistant(AIAssistantBase):
         openai_client: Any | None = None,
         openai_api_key: str | None = None,
         openai_base_url: str | None = None,
+        temperature: float = 1,
     ) -> None:
         super().__init__(
             system_prompt=system_prompt,
@@ -61,6 +62,7 @@ class ChatAssistant(AIAssistantBase):
             openai_client=openai_client,
             openai_api_key=openai_api_key,
             openai_base_url=openai_base_url,
+            temperature=temperature,
         )
         self._knowledge_search = knowledge_search
         self._player_info_reader = player_info_reader
@@ -77,6 +79,7 @@ class ChatAssistant(AIAssistantBase):
                 "message": message,
             }
         )
+        print(result)
         return {"response": result["response"]}
 
     def _build_tools(self) -> dict[str, Any]:
@@ -193,8 +196,10 @@ class ChatAssistant(AIAssistantBase):
         output_text = self._call_openai(
             self._build_user_prompt(memories=memories, message=message, tool_text=tool_text)
         )
+        output_text = json.loads(output_text)
+        print(f"生成回复时模型输出：{output_text}")
         if output_text:
-            return {"response": output_text}
+            return output_text
         return {"response": fallback_response}
 
     def _build_fallback_response(
@@ -261,6 +266,7 @@ class ChatAssistant(AIAssistantBase):
     def _decide_tools_with_model(self, *, message: str, memories: str) -> dict[str, bool] | None:
         """优先交给模型做工具选择；无响应或响应无法解析时返回 None 走本地兜底。"""
         output_text = self._call_openai(self._build_tool_decision_prompt(memories=memories, message=message))
+        print(output_text)
         if not output_text:
             return None
         return self._parse_tool_decisions(output_text)

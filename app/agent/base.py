@@ -21,13 +21,15 @@ class AIAssistantBase(ABC):
             self,
             *,
             system_prompt: str = "",
-            model_name: str = "qwen3.5:2b",
+            model_name: str = "qwen3:1.7b",
             openai_client: Any | None = None,
             openai_api_key: str | None = OLLAMA_KEY,
             openai_base_url: str | None = OLLAMA_URL,
+            temperature: float = 0.1,
     ) -> None:
         self.system_prompt = system_prompt
         self.model_name = model_name
+        self.temperature = temperature
         self._openai_client = openai_client or self._build_openai_client(
             api_key=openai_api_key,
             base_url=openai_base_url,
@@ -45,19 +47,24 @@ class AIAssistantBase(ABC):
     ) -> Any | None:
         """根据环境变量按需构建 OpenAI 客户端。"""
         if OpenAI is None:
+            print(111111)
             return None
-        resolved_api_key = api_key or os.getenv("OPENAI_API_KEY")
+        resolved_api_key = api_key or OLLAMA_KEY
         if not resolved_api_key:
+            print(222222222)
             return None
-        resolved_base_url = base_url or os.getenv("OPENAI_BASE_URL")
+        resolved_base_url = OLLAMA_URL
         client_kwargs: dict[str, str] = {"api_key": resolved_api_key}
         if resolved_base_url:
             client_kwargs["base_url"] = resolved_base_url
+        print(33333333)
+        print(client_kwargs)
         return OpenAI(**client_kwargs)
 
     def _call_openai(self, user_input: str) -> str | None:
         """调用 OpenAI Responses API，失败时返回 None 以便子类走本地兜底逻辑。"""
         if self._openai_client is None:
+            print(123123123)
             return None
         try:
             response = self._openai_client.chat.completions.create(
@@ -66,16 +73,18 @@ class AIAssistantBase(ABC):
                     {"role": "system", "content": self.system_prompt or ""},
                     {"role": "user", "content": user_input or ""},
                 ],
-                temperature=0.1,
+                temperature=self.temperature,
                 extra_body={"chat_template_kwargs": {"enable_thinking": False, "think": False}},
                 response_format={"type": "json_object"},
             )
 
             output_text = response.choices[0].message.content
+            print(f"OpenAI response: {output_text}")
             if output_text:
                 return output_text
             return output_text
         except Exception as e:
+            print(e)
             return None
         return None
 
