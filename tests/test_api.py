@@ -1,4 +1,5 @@
 import re
+import sqlite3
 from types import SimpleNamespace
 
 from fastapi.testclient import TestClient
@@ -10,13 +11,29 @@ from app.assistants import (
     ChessSuggestAssistant,
     MinesweeperAssistant,
 )
-from app.main import _init_db, app
+from app.main import DB_PATH, _init_db, app
 
 _init_db()
 
 client = TestClient(app)
 UCI_MOVE_LENGTH = 4
 UCI_MOVE_PATTERN = re.compile(r"^[a-h][1-8][a-h][1-8]$")
+
+
+def _upsert_player(account: str, name: str, gold: int = 0, level: int = 1) -> None:
+    with sqlite3.connect(DB_PATH) as conn:
+        conn.execute(
+            """
+            INSERT INTO players (name, account, password, gold, level)
+            VALUES (?, ?, ?, ?, ?)
+            ON CONFLICT(account) DO UPDATE SET
+                name=excluded.name,
+                gold=excluded.gold,
+                level=excluded.level
+            """,
+            (name, account, "hashed-password", gold, level),
+        )
+        conn.commit()
 
 
 def test_health():
@@ -184,6 +201,44 @@ def test_game_suggestion_endpoints():
     assert body["opponent_side"] in {"white", "black"}
     assert len(body["move"]) == UCI_MOVE_LENGTH
     assert UCI_MOVE_PATTERN.match(body["move"])
+
+
+def test_game_add_gold_endpoint():
+    _upsert_player("player-game-reward", "奖励玩家", gold=100)
+
+    response = client.post(
+        "/game/add-gold",
+        json={"player_id": "player-game-reward", "game_id": "minesweeper"},
+    )
+
+    assert response.status_code == 200
+    body = response.json()
+    assert body["status"] == "success"
+    assert body["game_id"] == "minesweeper"
+    assert body["added_gold"] == 10
+    assert body["gold"] == 110
+    assert body["player_id"].isdigit()
+    with sqlite3.connect(DB_PATH) as conn:
+        saved_gold = conn.execute(
+            "SELECT gold FROM players WHERE account=?",
+            ("player-game-reward",),
+        ).fetchone()[0]
+    assert saved_gold == 110
+
+
+def test_game_add_gold_rejects_unknown_game_id():
+    _upsert_player("player-game-invalid", "未知奖励玩家", gold=50)
+
+    response = client.post(
+        "/game/add-gold",
+        json={"player_id": "player-game-invalid", "game_id": "unknown-game"},
+    )
+
+    assert response.status_code == 200
+    assert response.json() == {
+        "status": "failed",
+        "reason": "unknown game_id: unknown-game",
+    }
 
 
 def test_assistants_are_independent_classes_with_config():
