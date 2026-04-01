@@ -1,7 +1,13 @@
-from app.command.chat_command import daily_chat, record_chat
+from app.command.daily_chat_command import run as daily_chat
 from app.command.database import CHROMA_PATH, DB_PATH, init_db
-from app.command.farm_command import harvest_crop, list_lands, plant_crop, query_crop_status
-from app.command.game_command import suggest_chess, suggest_chess_opponent_move, suggest_minesweeper
+from app.command.harvest_crop_command import run as harvest_crop
+from app.command.list_lands_command import run as list_lands
+from app.command.plant_crop_command import run as plant_crop
+from app.command.query_crop_status_command import run as query_crop_status
+from app.command.record_chat_command import run as record_chat
+from app.command.chess_opponent_move_command import run as suggest_chess_opponent_move
+from app.command.chess_suggest_command import run as suggest_chess
+from app.command.minesweeper_suggest_command import run as suggest_minesweeper
 
 __all__ = [
     "DB_PATH",
