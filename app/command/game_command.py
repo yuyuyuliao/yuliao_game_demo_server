@@ -16,7 +16,8 @@ from app.prompt import (
 )
 
 MODEL_NAME = "qwen3:1.7b"
-MINESWEEPER_WIN_GOLD_REWARD = 10
+# 扫雷获胜奖励的金币数量，可以根据实际情况调整。
+MINESWEEPER_WIN_GOLD_REWARD = 1000
 minesweeper_assistant = MinesweeperAssistant(
     system_prompt=MINESWEEPER_SYSTEM_PROMPT,
     model_name=MODEL_NAME,
