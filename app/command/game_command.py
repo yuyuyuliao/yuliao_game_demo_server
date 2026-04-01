@@ -16,10 +16,7 @@ from app.prompt import (
 )
 
 MODEL_NAME = "qwen3:1.7b"
-GAME_GOLD_REWARDS = {
-    "minesweeper": 10,
-    "chess": 20,
-}
+MINESWEEPER_WIN_GOLD_REWARD = 10
 minesweeper_assistant = MinesweeperAssistant(
     system_prompt=MINESWEEPER_SYSTEM_PROMPT,
     model_name=MODEL_NAME,
@@ -70,18 +67,14 @@ async def _query_player(session: AsyncSession, player_id: str) -> Player | None:
     return result.scalar_one_or_none()
 
 
-async def add_game_gold(player_id: str, game_id: str) -> dict[str, Any]:
-    """根据游戏ID给指定玩家发放金币奖励。"""
-    reward_gold = GAME_GOLD_REWARDS.get(game_id)
-    if reward_gold is None:
-        return {"status": "failed", "reason": f"unknown game_id: {game_id}"}
-
+async def add_minesweeper_win_gold(player_id: str) -> dict[str, Any]:
+    """给扫雷胜利的指定玩家发放金币奖励。"""
     async with AsyncSessionLocal() as session:
         player = await _query_player(session, player_id)
         if player is None:
             return {"status": "failed", "reason": f"player not found: {player_id}"}
 
-        player.gold += reward_gold
+        player.gold += MINESWEEPER_WIN_GOLD_REWARD
         new_gold = player.gold
         player_db_id = player.id
         await session.commit()
@@ -89,7 +82,6 @@ async def add_game_gold(player_id: str, game_id: str) -> dict[str, Any]:
     return {
         "status": "success",
         "player_id": str(player_db_id),
-        "game_id": game_id,
-        "added_gold": reward_gold,
+        "added_gold": MINESWEEPER_WIN_GOLD_REWARD,
         "gold": new_gold,
     }
