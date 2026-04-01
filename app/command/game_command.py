@@ -3,6 +3,7 @@ from __future__ import annotations
 from typing import Any, Optional
 
 from sqlalchemy import or_, select
+from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.agent import ChessOpponentAssistant, ChessSuggestAssistant, MinesweeperAssistant
 from app.command.database import AsyncSessionLocal
@@ -49,8 +50,12 @@ def suggest_chess_opponent_move(board_fen: str, player_side: str) -> dict[str, s
     return chess_opponent_assistant.suggest(board_fen, player_side)
 
 
-async def _query_player(session, player_id: str) -> Player | None:
-    """按玩家ID、账号或昵称查询玩家记录。"""
+async def _query_player(session: AsyncSession, player_id: str) -> Player | None:
+    """按玩家ID、账号或昵称查询玩家记录。
+
+    :param session: 异步数据库会话。
+    :param player_id: 玩家标识，支持数字ID、账号或昵称。
+    """
     if not player_id:
         return None
 
@@ -77,12 +82,14 @@ async def add_game_gold(player_id: str, game_id: str) -> dict[str, Any]:
             return {"status": "failed", "reason": f"player not found: {player_id}"}
 
         player.gold += reward_gold
+        new_gold = player.gold
+        player_db_id = player.id
         await session.commit()
 
     return {
         "status": "success",
-        "player_id": str(player.id),
+        "player_id": str(player_db_id),
         "game_id": game_id,
         "added_gold": reward_gold,
-        "gold": player.gold,
+        "gold": new_gold,
     }

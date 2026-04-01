@@ -205,6 +205,11 @@ def test_game_suggestion_endpoints():
 
 def test_game_add_gold_endpoint():
     _upsert_player("player-game-reward", "奖励玩家", gold=100)
+    with sqlite3.connect(DB_PATH) as conn:
+        expected_player_id = conn.execute(
+            "SELECT id FROM players WHERE account=?",
+            ("player-game-reward",),
+        ).fetchone()[0]
 
     response = client.post(
         "/game/add-gold",
@@ -217,7 +222,7 @@ def test_game_add_gold_endpoint():
     assert body["game_id"] == "minesweeper"
     assert body["added_gold"] == 10
     assert body["gold"] == 110
-    assert body["player_id"].isdigit()
+    assert body["player_id"] == str(expected_player_id)
     with sqlite3.connect(DB_PATH) as conn:
         saved_gold = conn.execute(
             "SELECT gold FROM players WHERE account=?",
@@ -238,6 +243,19 @@ def test_game_add_gold_rejects_unknown_game_id():
     assert response.json() == {
         "status": "failed",
         "reason": "unknown game_id: unknown-game",
+    }
+
+
+def test_game_add_gold_rejects_unknown_player():
+    response = client.post(
+        "/game/add-gold",
+        json={"player_id": "missing-player", "game_id": "minesweeper"},
+    )
+
+    assert response.status_code == 200
+    assert response.json() == {
+        "status": "failed",
+        "reason": "player not found: missing-player",
     }
 
 
