@@ -39,11 +39,10 @@ class OpponentMoveRequest(BaseModel):
     player_side: str
 
 
-class AddGameGoldRequest(BaseModel):
-    """游戏奖励金币请求体。"""
+class MinesweeperWinRequest(BaseModel):
+    """扫雷胜利奖励请求体。"""
 
     player_id: str = Field(min_length=1)
-    game_id: str = Field(min_length=1)
 
 
 class PlantRequest(BaseModel):

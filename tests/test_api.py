@@ -203,7 +203,7 @@ def test_game_suggestion_endpoints():
     assert UCI_MOVE_PATTERN.match(body["move"])
 
 
-def test_game_add_gold_endpoint():
+def test_minesweeper_win_endpoint():
     _upsert_player("player-game-reward", "奖励玩家", gold=100)
     with sqlite3.connect(DB_PATH) as conn:
         expected_player_id = conn.execute(
@@ -212,14 +212,13 @@ def test_game_add_gold_endpoint():
         ).fetchone()[0]
 
     response = client.post(
-        "/game/add-gold",
-        json={"player_id": "player-game-reward", "game_id": "minesweeper"},
+        "/minesweeper/win",
+        json={"player_id": "player-game-reward"},
     )
 
     assert response.status_code == 200
     body = response.json()
     assert body["status"] == "success"
-    assert body["game_id"] == "minesweeper"
     assert body["added_gold"] == 10
     assert body["gold"] == 110
     assert body["player_id"] == str(expected_player_id)
@@ -231,25 +230,10 @@ def test_game_add_gold_endpoint():
     assert saved_gold == 110
 
 
-def test_game_add_gold_rejects_unknown_game_id():
-    _upsert_player("player-game-invalid", "未知奖励玩家", gold=50)
-
+def test_minesweeper_win_rejects_unknown_player():
     response = client.post(
-        "/game/add-gold",
-        json={"player_id": "player-game-invalid", "game_id": "unknown-game"},
-    )
-
-    assert response.status_code == 200
-    assert response.json() == {
-        "status": "failed",
-        "reason": "unknown game_id: unknown-game",
-    }
-
-
-def test_game_add_gold_rejects_unknown_player():
-    response = client.post(
-        "/game/add-gold",
-        json={"player_id": "missing-player", "game_id": "minesweeper"},
+        "/minesweeper/win",
+        json={"player_id": "missing-player"},
     )
 
     assert response.status_code == 200

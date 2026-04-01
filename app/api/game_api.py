@@ -4,8 +4,8 @@ from typing import Any
 
 from fastapi import APIRouter
 
-from app.api.schemas import AddGameGoldRequest, ChessRequest, MinesweeperRequest, OpponentMoveRequest
-from app.command.game_command import add_game_gold, suggest_chess, suggest_chess_opponent_move, suggest_minesweeper
+from app.api.schemas import ChessRequest, MinesweeperRequest, MinesweeperWinRequest, OpponentMoveRequest
+from app.command.game_command import add_minesweeper_win_gold, suggest_chess, suggest_chess_opponent_move, suggest_minesweeper
 
 router = APIRouter()
 
@@ -28,7 +28,7 @@ def chess_opponent_move_api(payload: OpponentMoveRequest) -> dict[str, str]:
     return suggest_chess_opponent_move(payload.board_fen, payload.player_side)
 
 
-@router.post("/game/add-gold")
-async def add_game_gold_api(payload: AddGameGoldRequest) -> dict[str, Any]:
-    """根据游戏ID给玩家增加金币。"""
-    return await add_game_gold(payload.player_id, payload.game_id)
+@router.post("/minesweeper/win")
+async def minesweeper_win_api(payload: MinesweeperWinRequest) -> dict[str, Any]:
+    """扫雷胜利后给玩家增加金币。"""
+    return await add_minesweeper_win_gold(payload.player_id)
