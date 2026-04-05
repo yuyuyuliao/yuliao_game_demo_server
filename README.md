@@ -86,8 +86,8 @@ uvicorn app.main:app --reload
 ## 项目结构
 
 - `app/main.py`：应用入口，只负责组装 FastAPI 和生命周期
-- `app/api/`：接口层，定义接口与请求参数，并调用对应 command
-- `app/command/`：业务命令层，负责聊天、游戏和种地等具体逻辑
+- `app/api/`：接口层，定义接口与请求参数；每个具体接口函数只调用对应 command 的 `run`
+- `app/command/`：业务命令层，按具体接口拆分 command，并在 `run` 中承接业务逻辑
 - `app/model/`：SQLAlchemy 异步 ORM 模型定义，每张表一个 model 文件
 - `app/migrations/`：SQLite 数据库迁移脚本，启动时按版本顺序执行
 - `scripts/`：按需执行的数据写入脚本，文件名使用“日期+功能”
