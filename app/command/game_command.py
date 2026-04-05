@@ -93,12 +93,9 @@ async def add_minesweeper_win_gold(player_id: str) -> dict[str, Any]:
 
         player.gold += MINESWEEPER_WIN_GOLD_REWARD
         new_gold = player.gold
-        player_db_id = player.id
         await session.commit()
 
     return {
-        "status": "success",
-        "player_id": str(player_db_id),
-        "added_gold": MINESWEEPER_WIN_GOLD_REWARD,
+        "addedGold": MINESWEEPER_WIN_GOLD_REWARD,
         "gold": new_gold,
     }

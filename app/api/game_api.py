@@ -9,7 +9,7 @@ import app.command.chess_opponent_move_command as chess_opponent_move_command
 import app.command.chess_suggest_command as chess_suggest_command
 import app.command.minesweeper_suggest_command as minesweeper_suggest_command
 import app.command.minesweeper_win_command as minesweeper_win_command
-
+from app.command.game_command import get_player_info
 
 router = APIRouter()
 
