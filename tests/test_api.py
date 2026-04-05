@@ -203,6 +203,39 @@ def test_game_suggestion_endpoints():
     assert UCI_MOVE_PATTERN.match(body["move"])
 
 
+def test_player_info_endpoint():
+    _upsert_player("player-game-info", "资料玩家", gold=345, level=9)
+    with sqlite3.connect(DB_PATH) as conn:
+        expected_player_id = conn.execute(
+            "SELECT id FROM players WHERE account=?",
+            ("player-game-info",),
+        ).fetchone()[0]
+
+    response = client.get("/player/info/player-game-info")
+
+    assert response.status_code == 200
+    assert response.json() == {
+        "status": "success",
+        "player": {
+            "id": expected_player_id,
+            "name": "资料玩家",
+            "account": "player-game-info",
+            "gold": 345,
+            "level": 9,
+        },
+    }
+
+
+def test_player_info_endpoint_rejects_unknown_player():
+    response = client.get("/player/info/missing-player")
+
+    assert response.status_code == 200
+    assert response.json() == {
+        "status": "failed",
+        "reason": "player not found: missing-player",
+    }
+
+
 def test_minesweeper_win_endpoint():
     _upsert_player("player-game-reward", "奖励玩家", gold=100)
     with sqlite3.connect(DB_PATH) as conn:

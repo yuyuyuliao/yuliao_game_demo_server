@@ -100,6 +100,7 @@ uvicorn app.main:app --reload
 - `GET /health`：健康检查
 - `POST /chat/record`：记录玩家聊天内容（SQLite）
 - `POST /chat/daily`：读取玩家历史聊天，返回有记忆的日常对话，并可按需查询玩家信息、田地信息和知识库攻略
+- `GET /player/info/{player_id}`：查询指定玩家的公开资料（ID、昵称、账号、等级、金币）
 - `POST /minesweeper/suggest`：根据扫雷棋盘给出下一步建议
 - `POST /chess/suggest`：根据国际象棋局面给出下一步建议
 - `POST /chess/opponent-move`：根据当前局面，作为对手给出下一步落位

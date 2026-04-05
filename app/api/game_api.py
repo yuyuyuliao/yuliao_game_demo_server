@@ -10,7 +10,14 @@ import app.command.chess_suggest_command as chess_suggest_command
 import app.command.minesweeper_suggest_command as minesweeper_suggest_command
 import app.command.minesweeper_win_command as minesweeper_win_command
 
+
 router = APIRouter()
+
+
+@router.get("/player/info/{player_id}")
+async def player_info_api(player_id: str) -> dict[str, Any]:
+    """读取指定玩家的公开资料。"""
+    return await get_player_info(player_id)
 
 
 @router.post("/minesweeper/suggest")
