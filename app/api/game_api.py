@@ -5,9 +5,21 @@ from typing import Any
 from fastapi import APIRouter
 
 from app.api.schemas import ChessRequest, MinesweeperRequest, MinesweeperWinRequest, OpponentMoveRequest
-from app.command.game_command import add_minesweeper_win_gold, suggest_chess, suggest_chess_opponent_move, suggest_minesweeper
+from app.command.game_command import (
+    add_minesweeper_win_gold,
+    get_player_info,
+    suggest_chess,
+    suggest_chess_opponent_move,
+    suggest_minesweeper,
+)
 
 router = APIRouter()
+
+
+@router.get("/player/info/{player_id}")
+async def player_info_api(player_id: str) -> dict[str, Any]:
+    """读取指定玩家的公开资料。"""
+    return await get_player_info(player_id)
 
 
 @router.post("/minesweeper/suggest")

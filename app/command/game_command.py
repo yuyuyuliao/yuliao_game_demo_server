@@ -18,6 +18,7 @@ from app.prompt import (
 MODEL_NAME = "qwen3:1.7b"
 # 扫雷获胜奖励的金币数量，可以根据实际情况调整。
 MINESWEEPER_WIN_GOLD_REWARD = 1000
+PLAYER_PUBLIC_FIELDS = ("id", "name", "account", "gold", "level")
 minesweeper_assistant = MinesweeperAssistant(
     system_prompt=MINESWEEPER_SYSTEM_PROMPT,
     model_name=MODEL_NAME,
@@ -66,6 +67,21 @@ async def _query_player(session: AsyncSession, player_id: str) -> Player | None:
         select(Player).where(or_(Player.account == player_id, Player.name == player_id))
     )
     return result.scalar_one_or_none()
+
+
+def _serialize_player(player: Player) -> dict[str, Any]:
+    """序列化玩家公开资料，避免暴露敏感字段。"""
+    return {field: getattr(player, field) for field in PLAYER_PUBLIC_FIELDS}
+
+
+async def get_player_info(player_id: str) -> dict[str, Any]:
+    """读取指定玩家的公开资料。"""
+    async with AsyncSessionLocal() as session:
+        player = await _query_player(session, player_id)
+        if player is None:
+            return {"status": "failed", "reason": f"player not found: {player_id}"}
+
+        return {"status": "success", "player": _serialize_player(player)}
 
 
 async def add_minesweeper_win_gold(player_id: str) -> dict[str, Any]:
