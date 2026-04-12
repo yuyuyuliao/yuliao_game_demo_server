@@ -81,7 +81,7 @@ async def get_player_info(player_id: str) -> dict[str, Any]:
         if player is None:
             return {"status": "failed", "reason": f"player not found: {player_id}"}
 
-        return {"status": "success", "player": _serialize_player(player)}
+        return _serialize_player(player)
 
 
 async def add_minesweeper_win_gold(player_id: str) -> dict[str, Any]:
