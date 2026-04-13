@@ -104,6 +104,7 @@ uvicorn app.main:app --reload
 - `POST /minesweeper/suggest`：根据扫雷棋盘给出下一步建议
 - `POST /chess/suggest`：根据国际象棋局面给出下一步建议
 - `POST /chess/opponent-move`：根据当前局面，作为对手给出下一步落位
+- `GET /farm/crops`：查询全部作物基础信息（不是土地上的种植实例）
 - `GET /farm/lands`：查询全部土地（自增ID、价格、等级、描述）
 - `POST /farm/plant`：在指定土地种植作物
 - `GET /farm/status/{land_id}`：查询土地当前作物与生长阶段（含水量、肥力、温度）
