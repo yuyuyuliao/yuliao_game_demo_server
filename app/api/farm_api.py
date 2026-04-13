@@ -6,6 +6,7 @@ from fastapi import APIRouter
 
 from app.api.schemas import HarvestRequest, PlantRequest
 import app.command.harvest_crop_command as harvest_crop_command
+import app.command.list_crops_command as list_crops_command
 import app.command.list_lands_command as list_lands_command
 import app.command.plant_crop_command as plant_crop_command
 import app.command.query_crop_status_command as query_crop_status_command
@@ -17,6 +18,12 @@ router = APIRouter()
 async def list_lands_api() -> dict[str, list[dict[str, Any]]]:
     """查询全部土地基础信息。"""
     return await list_lands_command.run()
+
+
+@router.get("/farm/crops")
+async def list_crops_api() -> dict[str, list[dict[str, Any]]]:
+    """查询全部作物基础信息。"""
+    return await list_crops_command.run()
 
 
 @router.post("/farm/plant")

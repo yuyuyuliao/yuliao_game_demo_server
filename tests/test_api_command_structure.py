@@ -89,6 +89,9 @@ def test_chat_api_endpoints_delegate_to_matching_command_run(monkeypatch):
 
 
 def test_farm_api_endpoints_delegate_to_matching_command_run(monkeypatch):
+    async def fake_list_crops():
+        return {"crops": [{"id": 66, "name": "delegated-crop"}]}
+
     async def fake_list_lands():
         return {"lands": [{"id": 99, "name": "delegated-land"}]}
 
@@ -101,11 +104,13 @@ def test_farm_api_endpoints_delegate_to_matching_command_run(monkeypatch):
     async def fake_harvest_crop(land_id: int):
         return {"command": "harvest_crop", "land_id": land_id}
 
+    monkeypatch.setattr(farm_api.list_crops_command, "run", fake_list_crops)
     monkeypatch.setattr(farm_api.list_lands_command, "run", fake_list_lands)
     monkeypatch.setattr(farm_api.plant_crop_command, "run", fake_plant_crop)
     monkeypatch.setattr(farm_api.query_crop_status_command, "run", fake_query_crop_status)
     monkeypatch.setattr(farm_api.harvest_crop_command, "run", fake_harvest_crop)
 
+    assert client.get("/farm/crops").json() == {"crops": [{"id": 66, "name": "delegated-crop"}]}
     assert client.get("/farm/lands").json() == {"lands": [{"id": 99, "name": "delegated-land"}]}
     assert client.post("/farm/plant", json={"land_id": 2, "crop_id": 3}).json() == {
         "command": "plant_crop",

@@ -44,6 +44,17 @@ def test_farm_lands_are_seeded_with_increasing_price():
     assert prices == sorted(prices)
 
 
+def test_farm_crops_are_seeded_with_basic_info():
+    response = client.get("/farm/crops")
+    assert response.status_code == 200
+    crops = response.json()["crops"]
+    assert len(crops) >= 3
+    first = crops[0]
+    assert set(first) == {"id", "name", "growth_seconds", "price", "description", "profit_price"}
+    assert [crop["id"] for crop in crops] == sorted(crop["id"] for crop in crops)
+    assert all(crop["growth_seconds"] > 0 for crop in crops)
+
+
 def test_farm_plant_query_and_harvest():
     land_id = 1
     crop_id = 1
