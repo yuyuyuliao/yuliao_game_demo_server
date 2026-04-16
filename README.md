@@ -2,6 +2,8 @@
 
 用于 unity 小游戏 demo 的后端轻量化服务（FastAPI）。
 
+使用codex开发
+
 ## 安装依赖
 
 ```bash
