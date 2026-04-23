@@ -22,7 +22,7 @@ class DailyChatRequest(BaseModel):
 class MinesweeperRequest(BaseModel):
     """扫雷建议请求体，board 为二维棋盘。"""
 
-    board: str
+    board: Any
 
 
 class ChessRequest(BaseModel):

@@ -1,13 +1,12 @@
 from __future__ import annotations
 
 from abc import ABC
-import os
 import re
 from typing import Any
 
 try:
     from openai import OpenAI
-except Exception:  # pragma: no cover - fallback when openai is unavailable
+except Exception:  # pragma: no cover
     OpenAI = None
 
 OLLAMA_URL = "http://localhost:11434/v1"
@@ -18,14 +17,14 @@ class AIAssistantBase(ABC):
     """AI 助手基类：统一管理 system 提示词与模型名称。"""
 
     def __init__(
-            self,
-            *,
-            system_prompt: str = "",
-            model_name: str = "qwen3:1.7b",
-            openai_client: Any | None = None,
-            openai_api_key: str | None = OLLAMA_KEY,
-            openai_base_url: str | None = OLLAMA_URL,
-            temperature: float = 0.1,
+        self,
+        *,
+        system_prompt: str = "",
+        model_name: str = "demo-model",
+        openai_client: Any | None = None,
+        openai_api_key: str | None = OLLAMA_KEY,
+        openai_base_url: str | None = OLLAMA_URL,
+        temperature: float = 0.1,
     ) -> None:
         self.system_prompt = system_prompt
         self.model_name = model_name
@@ -36,37 +35,33 @@ class AIAssistantBase(ABC):
         )
 
     def agent_config(self) -> dict[str, str]:
-        """返回当前助手配置，便于作为 agent 元数据输出。"""
         return {"system_prompt": self.system_prompt, "model_name": self.model_name}
 
-    def _build_openai_client(
-            self,
-            *,
-            api_key: str | None,
-            base_url: str | None,
-    ) -> Any | None:
-        """根据环境变量按需构建 OpenAI 客户端。"""
+    def _build_openai_client(self, *, api_key: str | None, base_url: str | None) -> Any | None:
         if OpenAI is None:
-            print(111111)
             return None
         resolved_api_key = api_key or OLLAMA_KEY
         if not resolved_api_key:
-            print(222222222)
             return None
-        resolved_base_url = OLLAMA_URL
         client_kwargs: dict[str, str] = {"api_key": resolved_api_key}
+        resolved_base_url = base_url or OLLAMA_URL
         if resolved_base_url:
             client_kwargs["base_url"] = resolved_base_url
-        print(33333333)
-        print(client_kwargs)
         return OpenAI(**client_kwargs)
 
     def _call_openai(self, user_input: str) -> str | None:
-        """调用 OpenAI Responses API，失败时返回 None 以便子类走本地兜底逻辑。"""
         if self._openai_client is None:
-            print(123123123)
             return None
         try:
+            if hasattr(self._openai_client, "responses"):
+                response = self._openai_client.responses.create(
+                    model=self.model_name,
+                    instructions=self.system_prompt or "",
+                    input=user_input or "",
+                    temperature=self.temperature,
+                )
+                return getattr(response, "output_text", None)
+
             response = self._openai_client.chat.completions.create(
                 model=self.model_name,
                 messages=[
@@ -77,20 +72,12 @@ class AIAssistantBase(ABC):
                 extra_body={"chat_template_kwargs": {"enable_thinking": False, "think": False}},
                 response_format={"type": "json_object"},
             )
-
-            output_text = response.choices[0].message.content
-            print(f"OpenAI response: {output_text}")
-            if output_text:
-                return output_text
-            return output_text
-        except Exception as e:
-            print(e)
+            return response.choices[0].message.content
+        except Exception:
             return None
-        return None
 
     @staticmethod
     def _extract_uci_move(text: str) -> str | None:
-        """从文本中提取 UCI 走法。"""
         match = re.search(r"\b([a-h][1-8][a-h][1-8])\b", text.lower())
         if match:
             return match.group(1)

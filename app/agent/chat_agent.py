@@ -2,11 +2,10 @@ from __future__ import annotations
 
 import json
 import logging
+from dataclasses import dataclass
 from typing import Any, Callable, Optional, TypedDict
 
-from langchain.tools import tool
-from langgraph.graph import END, START, StateGraph
-
+from app.agent.agentscope_runtime import ensure_agentscope_initialized, is_agentscope_ready
 from app.agent.base import AIAssistantBase
 
 logger = logging.getLogger(__name__)
@@ -28,9 +27,17 @@ TOOL_INPUT_FIELD_MAP = {
 }
 
 
-class ChatAgentState(TypedDict, total=False):
-    """聊天 agent 在 LangGraph 中流转的状态。"""
+@dataclass(slots=True)
+class LocalTool:
+    """最小工具封装，保持 invoke 接口兼容。"""
 
+    fn: Callable[..., str]
+
+    def invoke(self, payload: dict[str, str]) -> str:
+        return self.fn(**payload)
+
+
+class ChatAgentState(TypedDict, total=False):
     player_id: str
     history: list[str]
     message: str
@@ -68,40 +75,35 @@ class ChatAssistant(AIAssistantBase):
         self._player_info_reader = player_info_reader
         self._farm_info_reader = farm_info_reader
         self._tool_map = self._build_tools()
-        self._graph = self._build_graph()
+
+        # 尝试初始化 AgentScope，失败时自动回退到本地编排。
+        self._agentscope_enabled = ensure_agentscope_initialized(model_name)
 
     def reply(self, history: list[str], message: str, player_id: str = "") -> dict[str, str]:
-        """根据聊天历史和用户输入生成日常对话回复。"""
-        result = self._graph.invoke(
-            {
-                "player_id": player_id,
-                "history": history,
-                "message": message,
-            }
-        )
-        print(result)
-        return {"response": result["response"]}
+        state: ChatAgentState = {
+            "player_id": player_id,
+            "history": history,
+            "message": message,
+        }
+        state.update(self._remember_history(state))
+        state.update(self._decide_tools(state))
+        if self._route_after_decision(state) == "run_tools":
+            state.update(self._run_tools(state))
+        state.update(self._generate_reply(state))
+        return {"response": state["response"]}
 
-    def _build_tools(self) -> dict[str, Any]:
-        """构建 LangChain tool，供 LangGraph 工作流按需调用。"""
-
-        @tool
+    def _build_tools(self) -> dict[str, LocalTool]:
         def read_player_info_tool(player_id: str) -> str:
-            """读取玩家基础信息，包括昵称、账号、等级和金币。"""
             if self._player_info_reader is None:
                 return "当前没有可用的玩家资料读取工具。"
             return self._player_info_reader(player_id)
 
-        @tool
         def read_player_farm_tool(player_id: str) -> str:
-            """读取玩家当前可查看的田地与作物信息。"""
             if self._farm_info_reader is None:
                 return "当前没有可用的田地信息读取工具。"
             return self._farm_info_reader(player_id)
 
-        @tool
         def search_game_guide_tool(query: str) -> str:
-            """查询游戏攻略或技巧，优先从向量知识库中检索答案。"""
             if self._knowledge_search is None:
                 return "当前没有可用的攻略知识库。"
             documents = self._knowledge_search(query, n_results=2)
@@ -110,40 +112,17 @@ class ChatAssistant(AIAssistantBase):
             return "；".join(documents)
 
         return {
-            "player_info": read_player_info_tool,
-            "farm_info": read_player_farm_tool,
-            "game_guide": search_game_guide_tool,
+            "player_info": LocalTool(read_player_info_tool),
+            "farm_info": LocalTool(read_player_farm_tool),
+            "game_guide": LocalTool(search_game_guide_tool),
         }
 
-    def _build_graph(self):
-        """构建基于 LangGraph 的聊天编排流程。"""
-        graph = StateGraph(ChatAgentState)
-        graph.add_node("remember", self._remember_history)
-        graph.add_node("decide_tools", self._decide_tools)
-        graph.add_node("run_tools", self._run_tools)
-        graph.add_node("generate_reply", self._generate_reply)
-        graph.add_edge(START, "remember")
-        graph.add_edge("remember", "decide_tools")
-        graph.add_conditional_edges(
-            "decide_tools",
-            self._route_after_decision,
-            {
-                "run_tools": "run_tools",
-                "generate_reply": "generate_reply",
-            },
-        )
-        graph.add_edge("run_tools", "generate_reply")
-        graph.add_edge("generate_reply", END)
-        return graph.compile()
-
     def _remember_history(self, state: ChatAgentState) -> ChatAgentState:
-        """整理近期历史对话，作为短期记忆输入。"""
         history = state.get("history") or []
         memories = "；".join(history[-CHAT_MEMORY_WINDOW:]) if history else DEFAULT_EMPTY_MEMORIES
         return {"memories": memories}
 
     def _decide_tools(self, state: ChatAgentState) -> ChatAgentState:
-        """根据玩家问题内容决定是否需要触发工具。"""
         message = state.get("message", "")
         memories = state.get("memories", DEFAULT_EMPTY_MEMORIES)
         tool_decisions = self._decide_tools_with_model(message=message, memories=memories)
@@ -161,11 +140,9 @@ class ChatAssistant(AIAssistantBase):
 
     @staticmethod
     def _route_after_decision(state: ChatAgentState) -> str:
-        """根据是否需要查询工具决定后续节点。"""
         return "run_tools" if state.get("requested_tools") else "generate_reply"
 
     def _run_tools(self, state: ChatAgentState) -> ChatAgentState:
-        """执行已选中的工具并收集结果。"""
         outputs: dict[str, str] = {}
         for tool_name in state.get("requested_tools", []):
             tool_instance = self._tool_map.get(tool_name)
@@ -180,7 +157,6 @@ class ChatAssistant(AIAssistantBase):
         return {"tool_outputs": outputs}
 
     def _generate_reply(self, state: ChatAgentState) -> ChatAgentState:
-        """综合记忆与工具结果生成最终回复。"""
         memories = state.get("memories", DEFAULT_EMPTY_MEMORIES)
         message = state.get("message", "")
         tool_outputs = state.get("tool_outputs", {})
@@ -193,13 +169,22 @@ class ChatAssistant(AIAssistantBase):
         )
         if self._openai_client is None:
             return {"response": fallback_response}
+
+        # AgentScope 可用时沿用同一提示词入口，为后续替换成 AgentScope Agent 留接口。
+        if self._agentscope_enabled and is_agentscope_ready():
+            logger.debug("agentscope runtime ready for chat assistant")
+
         output_text = self._call_openai(
             self._build_user_prompt(memories=memories, message=message, tool_text=tool_text)
         )
-        output_text = json.loads(output_text)
-        print(f"生成回复时模型输出：{output_text}")
-        if output_text:
-            return output_text
+        try:
+            payload = json.loads(output_text) if output_text else None
+        except (TypeError, json.JSONDecodeError):
+            payload = None
+        if isinstance(payload, dict) and payload.get("response"):
+            return {"response": str(payload["response"])}
+        if isinstance(output_text, str) and output_text.strip():
+            return {"response": output_text}
         return {"response": fallback_response}
 
     def _build_fallback_response(
@@ -210,7 +195,6 @@ class ChatAssistant(AIAssistantBase):
         tool_outputs: dict[str, str],
         tool_text: str,
     ) -> str:
-        """在未调用大模型时，尽量直接返回已经得到的结论，避免生硬套话。"""
         guide_text = tool_outputs.get("game_guide")
         if len(tool_outputs) == 1 and guide_text:
             return guide_text
@@ -221,7 +205,6 @@ class ChatAssistant(AIAssistantBase):
         return "想聊什么就继续告诉我吧。"
 
     def _build_user_prompt(self, *, memories: str, message: str, tool_text: str) -> str:
-        """将聊天历史与工具结果整理为发送给 OpenAI 的用户输入。"""
         return (
             f"历史聊天：{memories}\n"
             f"玩家当前消息：{message}\n"
@@ -230,7 +213,6 @@ class ChatAssistant(AIAssistantBase):
         )
 
     def _build_tool_decision_prompt(self, *, memories: str, message: str) -> str:
-        """将上下文整理成工具选择提示词，让模型判断本轮是否需要查资料。"""
         return (
             "请判断当前玩家消息是否需要调用工具，并只返回 JSON 对象，不要输出额外解释。\n"
             "可选字段只有：player_info、farm_info、game_guide。\n"
@@ -249,7 +231,6 @@ class ChatAssistant(AIAssistantBase):
 
     @staticmethod
     def _build_tool_text(tool_outputs: dict[str, str]) -> str:
-        """将各个工具的结果整理成便于回复的文字。"""
         if not tool_outputs:
             return ""
         labels = {
@@ -264,26 +245,20 @@ class ChatAssistant(AIAssistantBase):
         )
 
     def _decide_tools_with_model(self, *, message: str, memories: str) -> dict[str, bool] | None:
-        """优先交给模型做工具选择；无响应或响应无法解析时返回 None 走本地兜底。"""
         output_text = self._call_openai(self._build_tool_decision_prompt(memories=memories, message=message))
-        print(output_text)
         if not output_text:
             return None
         return self._parse_tool_decisions(output_text)
 
     @staticmethod
     def _parse_tool_decisions(output_text: str) -> dict[str, bool] | None:
-        """解析模型返回的工具判断 JSON。"""
         try:
             payload = json.loads(output_text)
         except json.JSONDecodeError:
             snippet = output_text[:MAX_TOOL_DECISION_LOG_LENGTH]
             if len(output_text) > MAX_TOOL_DECISION_LOG_LENGTH:
                 snippet += "...(truncated)"
-            logger.warning(
-                "聊天工具判定返回的 JSON 解析失败，响应片段：%s",
-                snippet,
-            )
+            logger.warning("聊天工具判定返回的 JSON 解析失败，响应片段：%s", snippet)
             return None
         return {
             tool_name: ChatAssistant._normalize_decision_flag(payload.get(tool_name))
@@ -292,7 +267,6 @@ class ChatAssistant(AIAssistantBase):
 
     @staticmethod
     def _normalize_decision_flag(value: object) -> bool:
-        """把模型返回的字段值规整为布尔值，兼容少量字符串化布尔输出。"""
         if isinstance(value, bool):
             return value
         if isinstance(value, (int, float)):
@@ -303,22 +277,18 @@ class ChatAssistant(AIAssistantBase):
 
     @staticmethod
     def _needs_player_info(tool_decisions: dict[str, bool]) -> bool:
-        """根据模型判定结果决定是否需要读取玩家信息。"""
         return bool(tool_decisions.get("player_info"))
 
     @staticmethod
     def _needs_farm_info(tool_decisions: dict[str, bool]) -> bool:
-        """根据模型判定结果决定是否需要读取田地信息。"""
         return bool(tool_decisions.get("farm_info"))
 
     @staticmethod
     def _needs_game_guide(tool_decisions: dict[str, bool]) -> bool:
-        """根据模型判定结果决定是否需要检索游戏攻略。"""
         return bool(tool_decisions.get("game_guide"))
 
     @staticmethod
     def _fallback_tool_decisions(message: str) -> dict[str, bool]:
-        """当模型暂时不可用时，使用旧规则兜底，避免工具能力整体失效。"""
         return {
             tool_name: ChatAssistant._contains_positive_keyword(message, keywords)
             for tool_name, keywords in (
@@ -330,7 +300,6 @@ class ChatAssistant(AIAssistantBase):
 
     @staticmethod
     def _contains_positive_keyword(message: str, keywords: tuple[str, ...]) -> bool:
-        """简单过滤明显否定表达，减少工具误触发。"""
         return any(
             keyword in message and all(f"{prefix}{keyword}" not in message for prefix in NEGATION_PREFIXES)
             for keyword in keywords

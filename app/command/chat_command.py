@@ -1,26 +1,15 @@
 from __future__ import annotations
 
-import os
-
 from sqlalchemy import select
 
-from app.agent import ChatAssistant
+from app.agent.factory import build_agent_registry
 from app.command.database import AsyncSessionLocal
-from app.command.knowledge import knowledge_store
-from app.command.chat_tools import read_player_farm_info, read_player_info
 from app.model import ChatHistory
-from app.prompt import CHAT_SYSTEM_PROMPT
-
 PLAYER_HISTORY_PREFIX = "玩家："
 ASSISTANT_HISTORY_PREFIX = "助手："
 
-chat_assistant = ChatAssistant(
-    system_prompt=CHAT_SYSTEM_PROMPT,
-    model_name=os.getenv("OPENAI_CHAT_MODEL", "qwen3:1.7b"),
-    knowledge_search=knowledge_store.search,
-    player_info_reader=read_player_info,
-    farm_info_reader=read_player_farm_info,
-)
+_AGENT_REGISTRY = build_agent_registry()
+chat_assistant = _AGENT_REGISTRY.create("chat")
 
 
 async def record_chat(player_id: str, text: str) -> dict[str, str]:

@@ -149,7 +149,7 @@ async def list_crops() -> dict[str, list[dict[str, Any]]]:
     async with AsyncSessionLocal() as session:
         rows = await session.execute(select(Crop).order_by(Crop.id.asc()))
         crops = [crop.to_dict() for crop in rows.scalars().all()]
-    return {"plants": crops}
+    return {"crops": crops}
 
 
 async def plant_crop(land_id: int, crop_id: int) -> dict[str, Any]:

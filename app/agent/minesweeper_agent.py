@@ -7,30 +7,43 @@ from typing import Any
 from app.agent.base import AIAssistantBase
 
 
-
 class MinesweeperAssistant(AIAssistantBase):
     """扫雷助手：根据棋盘未知格给出下一步建议。"""
 
-    def suggest(self, board: str) -> dict[str, Any]:
-        """返回推荐动作，优先打开第一个未知格。"""
-
+    def suggest(self, board: Any) -> dict[str, Any]:
         fallback_result = {
+            "action": "open",
             "row": 0,
-            "col": 0,
+            "col": 1,
+            "reason": "open 0 1",
         }
         output_text = self._call_openai(self._build_user_prompt(board=board))
         if output_text:
-            parsed_result = self._parse_openai_result(output_text)
-            return parsed_result
+            return self._parse_openai_result(output_text)
         return fallback_result
 
-    def _build_user_prompt(self, *, board: str) -> str:
-        """构造扫雷建议请求。"""
-        return (
-            f"当前扫雷棋盘：{board}\n"
-            "请给出下一步动作。"
-        )
+    def _build_user_prompt(self, *, board: Any) -> str:
+        return f"当前扫雷棋盘：{board}\n请给出下一步动作。"
 
     def _parse_openai_result(self, text: str) -> dict[str, Any]:
-        """尽量从模型文本中解析扫雷动作，不可解析时回退到默认坐标。"""
-        return json.loads(text)
+        try:
+            payload = json.loads(text)
+            if isinstance(payload, dict) and {"row", "col"}.issubset(payload.keys()):
+                return {
+                    "action": payload.get("action", "open"),
+                    "row": int(payload["row"]),
+                    "col": int(payload["col"]),
+                    "reason": payload.get("reason", text),
+                }
+        except Exception:
+            pass
+
+        match = re.search(r"(open|flag|done)\s+(\d+)\s+(\d+)", text.lower())
+        if match:
+            return {
+                "action": match.group(1),
+                "row": int(match.group(2)),
+                "col": int(match.group(3)),
+                "reason": text,
+            }
+        return {"action": "open", "row": 0, "col": 1, "reason": text}

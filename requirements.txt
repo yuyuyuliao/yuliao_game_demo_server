@@ -9,3 +9,5 @@ SQLAlchemy==2.0.43
 aiosqlite==0.21.0
 langchain==1.2.10
 langgraph==1.0.10
+
+agentscope==0.1.5

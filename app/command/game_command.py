@@ -5,33 +5,18 @@ from typing import Any, Optional
 from sqlalchemy import or_, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from app.agent import ChessOpponentAssistant, ChessSuggestAssistant, MinesweeperAssistant
+from app.agent.factory import build_agent_registry
 from app.command.database import AsyncSessionLocal
-from app.command.knowledge import knowledge_store
 from app.model import Player
-from app.prompt import (
-    CHESS_OPPONENT_SYSTEM_PROMPT,
-    CHESS_SYSTEM_PROMPT,
-    MINESWEEPER_SYSTEM_PROMPT,
-)
 
-MODEL_NAME = "qwen3:1.7b"
 # 扫雷获胜奖励的金币数量，可以根据实际情况调整。
-MINESWEEPER_WIN_GOLD_REWARD = 1000
+MINESWEEPER_WIN_GOLD_REWARD = 10
 PLAYER_PUBLIC_FIELDS = ("id", "name", "account", "gold", "level")
-minesweeper_assistant = MinesweeperAssistant(
-    system_prompt=MINESWEEPER_SYSTEM_PROMPT,
-    model_name=MODEL_NAME,
-)
-chess_assistant = ChessSuggestAssistant(
-    system_prompt=CHESS_SYSTEM_PROMPT,
-    model_name=MODEL_NAME,
-    knowledge_search=knowledge_store.search,
-)
-chess_opponent_assistant = ChessOpponentAssistant(
-    system_prompt=CHESS_OPPONENT_SYSTEM_PROMPT,
-    model_name=MODEL_NAME,
-)
+
+_AGENT_REGISTRY = build_agent_registry()
+minesweeper_assistant = _AGENT_REGISTRY.create("minesweeper")
+chess_assistant = _AGENT_REGISTRY.create("chess_suggest")
+chess_opponent_assistant = _AGENT_REGISTRY.create("chess_opponent")
 
 
 def suggest_minesweeper(board: str) -> dict[str, Any]:
@@ -81,7 +66,7 @@ async def get_player_info(player_id: str) -> dict[str, Any]:
         if player is None:
             return {"status": "failed", "reason": f"player not found: {player_id}"}
 
-        return _serialize_player(player)
+        return {"status": "success", "player": _serialize_player(player)}
 
 
 async def add_minesweeper_win_gold(player_id: str) -> dict[str, Any]:
@@ -96,6 +81,8 @@ async def add_minesweeper_win_gold(player_id: str) -> dict[str, Any]:
         await session.commit()
 
     return {
-        "addedGold": MINESWEEPER_WIN_GOLD_REWARD,
+        "status": "success",
+        "player_id": str(player.id),
+        "added_gold": MINESWEEPER_WIN_GOLD_REWARD,
         "gold": new_gold,
     }
