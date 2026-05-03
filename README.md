@@ -109,7 +109,7 @@ uvicorn app.main:app --reload
 - `GET /farm/crops`：查询全部作物基础信息（不是土地上的种植实例）
 - `GET /farm/lands`：查询全部土地（自增ID、价格、等级、描述）
 - `POST /farm/plant`：在指定土地种植作物
-- `GET /farm/status/{land_id}`：查询土地当前作物与生长阶段（含水量、肥力、温度）
+- `GET /farm/status/{index}`：按土地序号查询当前作物与生长阶段（含水量、肥力、温度）
 - `POST /farm/harvest`：采集成熟作物
 
 ## 知识库元数据

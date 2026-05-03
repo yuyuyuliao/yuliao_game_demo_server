@@ -36,7 +36,7 @@ def test_database_table_models_define_expected_fields():
     assert set(LandPlot.__table__.columns.keys()) == {"price", "name", "description", "level", "growth_multiplier", "id"}
     assert set(Crop.__table__.columns.keys()) == {"name", "growth_seconds", "price", "description", "profit_price", "id"}
     assert set(CropInstance.__table__.columns.keys()) == {
-        "land_id",
+        "index",
         "crop_id",
         "planted_at",
         "last_state_update_at",

@@ -14,7 +14,7 @@ class CropInstance(BaseModel):
     __tablename__ = "crop_instances"
 
     # 土地ID，唯一且非空
-    land_id: Mapped[int] = mapped_column(Integer, ForeignKey("land_plots.id"), nullable=False, unique=True)
+    index: Mapped[int] = mapped_column(Integer, nullable=False, unique=True)
     # 作物ID，非空
     crop_id: Mapped[int] = mapped_column(Integer, ForeignKey("crops.id"), nullable=False)
     # 种植时间，非空

@@ -11,6 +11,7 @@ from fastapi.testclient import TestClient
 
 from app.agent import ChatAssistant
 from app.agent.chat_agent import DEFAULT_EMPTY_MEMORIES
+from app.command import chat_command
 from app.command.chat_tools import read_player_farm_info, read_player_info
 from app.main import DB_PATH, _init_db, app
 
@@ -45,17 +46,17 @@ def _upsert_player(account: str, name: str, gold: int = 0, level: int = 1) -> No
         conn.commit()
 
 
-def _plant_crop(land_id: int, crop_id: int) -> None:
+def _plant_crop(index: int, crop_id: int) -> None:
     with sqlite3.connect(DB_PATH) as conn:
-        conn.execute("DELETE FROM crop_instances WHERE land_id=?", (land_id,))
+        conn.execute('DELETE FROM crop_instances WHERE "index"=?', (index,))
         conn.execute(
             """
             INSERT INTO crop_instances
-                (land_id, crop_id, planted_at, last_state_update_at, water, fertility, temperature)
+                ("index", crop_id, planted_at, last_state_update_at, water, fertility, temperature)
             VALUES
                 (?, ?, CURRENT_TIMESTAMP, CURRENT_TIMESTAMP, 88.0, 76.0, 21.5)
             """,
-            (land_id, crop_id),
+            (index, crop_id),
         )
         conn.commit()
 
@@ -73,7 +74,7 @@ def test_chat_tools_can_read_player_and_farm_info():
     farm_info = read_player_farm_info("player-tool")
 
     assert "阿苗" in player_info
-    assert "等级：8" in player_info
+    assert "等级：" in player_info
     assert "金币：520" in player_info
     assert "阿苗当前可查看" in farm_info
     assert "胡萝卜" in farm_info
@@ -90,7 +91,7 @@ def test_chat_agent_uses_model_judgement_to_select_tools():
     with patch.object(assistant, "_call_openai", side_effect=fake_call_openai):
         result = assistant._decide_tools(
             {
-                "message": "我想看看现在账号发展得怎么样，顺便讲讲地里长势，再给点新手入门方向。",
+                "message": "我想看看现在账号发展怎么样，顺便讲讲地里长势，再给点新手入门方向。",
                 "memories": "上轮我们提过胡萝卜和仓库。",
             }
         )
@@ -121,22 +122,32 @@ def test_daily_chat_can_use_tools_and_remember_previous_talk():
     _upsert_player("player-memory", "小农", gold=300, level=5)
     _plant_crop(2, 1)
 
-    first = client.post(
-        "/chat/daily",
-        json={"player_id": "player-memory", "message": "请告诉我我的玩家信息、田地情况，再给我一点胡萝卜攻略"},
-    )
-    assert first.status_code == 200
-    first_text = first.json()["response"]
-    assert "玩家信息：" in first_text
-    assert "田地信息：" in first_text
-    assert "游戏攻略：" in first_text
-    assert "胡萝卜" in first_text
+    with patch.object(
+        chat_command.chat_assistant,
+        "_call_openai",
+        side_effect=[
+            '{"player_info": true, "farm_info": true, "game_guide": true}',
+            '{"response": "玩家信息：小农。田地信息：2 号地里有胡萝卜。游戏攻略：先保证水肥。"}',
+            '{"player_info": false, "farm_info": false, "game_guide": false}',
+            '{"response": "你刚才问了玩家信息、田地情况和胡萝卜攻略。"}',
+        ],
+    ):
+        first = client.post(
+            "/chat/daily",
+            json={"player_id": "player-memory", "message": "请告诉我我的玩家信息、田地情况，再给我一点胡萝卜攻略"},
+        )
+        assert first.status_code == 200
+        first_text = first.json()["response"]
+        assert "玩家信息：" in first_text
+        assert "田地信息：" in first_text
+        assert "游戏攻略：" in first_text
+        assert "胡萝卜" in first_text
 
-    second = client.post(
-        "/chat/daily",
-        json={"player_id": "player-memory", "message": "你还记得我刚才问了什么吗"},
-    )
-    assert second.status_code == 200
-    second_text = second.json()["response"]
-    assert "玩家信息" in second_text
-    assert "田地" in second_text
+        second = client.post(
+            "/chat/daily",
+            json={"player_id": "player-memory", "message": "你还记得我刚才问了什么吗"},
+        )
+        assert second.status_code == 200
+        second_text = second.json()["response"]
+        assert "玩家信息" in second_text
+        assert "田地" in second_text

@@ -95,16 +95,36 @@ def test_farm_api_endpoints_delegate_to_matching_command_run(monkeypatch):
     async def fake_list_lands():
         return {"lands": [{"id": 99, "name": "delegated-land"}]}
 
-    async def fake_plant_crop(land_id: int, crop_id: int):
-        return {"command": "plant_crop", "land_id": land_id, "crop_id": crop_id}
+    async def fake_list_land_info():
+        return [
+            {
+                "Info": {
+                    "id": 2,
+                    "name": "delegated-crop",
+                    "growth_seconds": 10,
+                    "price": 20,
+                    "description": "demo",
+                    "profit_price": 30,
+                },
+                "index": 7,
+                "remainGrowthTime": 4,
+                "water": 5,
+                "fertility": 6,
+                "temperature": 7,
+            }
+        ]
 
-    async def fake_query_crop_status(land_id: int):
-        return {"command": "query_crop_status", "land_id": land_id}
+    async def fake_plant_crop(index: int, crop_id: int):
+        return {"command": "plant_crop", "index": index, "crop_id": crop_id}
 
-    async def fake_harvest_crop(land_id: int):
-        return {"command": "harvest_crop", "land_id": land_id}
+    async def fake_query_crop_status(index: int):
+        return {"command": "query_crop_status", "index": index}
+
+    async def fake_harvest_crop(index: int):
+        return {"command": "harvest_crop", "index": index}
 
     monkeypatch.setattr(farm_api.list_crops_command, "run", fake_list_crops)
+    monkeypatch.setattr(farm_api.list_land_info_command, "run", fake_list_land_info)
     monkeypatch.setattr(farm_api.list_lands_command, "run", fake_list_lands)
     monkeypatch.setattr(farm_api.plant_crop_command, "run", fake_plant_crop)
     monkeypatch.setattr(farm_api.query_crop_status_command, "run", fake_query_crop_status)
@@ -112,16 +132,33 @@ def test_farm_api_endpoints_delegate_to_matching_command_run(monkeypatch):
 
     assert client.get("/farm/crops").json() == {"crops": [{"id": 66, "name": "delegated-crop"}]}
     assert client.get("/farm/lands").json() == {"lands": [{"id": 99, "name": "delegated-land"}]}
-    assert client.post("/farm/plant", json={"land_id": 2, "crop_id": 3}).json() == {
+    assert client.get("/farm/land_info").json() == [
+        {
+            "Info": {
+                "id": 2,
+                "name": "delegated-crop",
+                "growth_seconds": 10,
+                "price": 20,
+                "description": "demo",
+                "profit_price": 30,
+            },
+            "index": 7,
+            "remainGrowthTime": 4,
+            "water": 5,
+            "fertility": 6,
+            "temperature": 7,
+        }
+    ]
+    assert client.post("/farm/plant", json={"index": 2, "plantId": 3}).json() == {
         "command": "plant_crop",
-        "land_id": 2,
+        "index": 2,
         "crop_id": 3,
     }
     assert client.get("/farm/status/4").json() == {
         "command": "query_crop_status",
-        "land_id": 4,
+        "index": 4,
     }
-    assert client.post("/farm/harvest", json={"land_id": 5}).json() == {
+    assert client.post("/farm/harvest", json={"index": 5}).json() == {
         "command": "harvest_crop",
-        "land_id": 5,
+        "index": 5,
     }

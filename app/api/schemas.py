@@ -13,7 +13,7 @@ class ChatRecordRequest(BaseModel):
 
 
 class DailyChatRequest(BaseModel):
-    """日常聊天请求体，包含玩家ID和当前消息。"""
+    """日常聊天请求体，包含玩家 ID 和当前消息。"""
 
     player_id: str = Field(min_length=1)
     message: str = Field(min_length=1)
@@ -48,11 +48,11 @@ class MinesweeperWinRequest(BaseModel):
 class PlantRequest(BaseModel):
     """种植请求体。"""
 
-    land_id: int = Field(gt=0)
-    crop_id: int = Field(gt=0)
+    index: int
+    plantId: int = Field(gt=0)
 
 
 class HarvestRequest(BaseModel):
     """采集请求体。"""
 
-    land_id: int = Field(gt=0)
+    index: int = Field(gt=0)

@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 from datetime import datetime
+from math import ceil
 from typing import Any, Optional
 
 from sqlalchemy import delete, select, update
@@ -8,6 +9,9 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.command.database import AsyncSessionLocal
 from app.model import Crop, CropInstance, LandPlot
+
+DEFAULT_LAND_LEVEL = 1
+DEFAULT_GROWTH_MULTIPLIER = 1.0
 
 FARM_DEFAULT_WATER = 100.0
 FARM_DEFAULT_FERTILITY = 100.0
@@ -41,6 +45,14 @@ def _parse_dt(value: Any) -> datetime:
         ) from exc
 
 
+async def _get_land_by_index(session: AsyncSession, index: int) -> Optional[LandPlot]:
+    rows = await session.execute(select(LandPlot).order_by(LandPlot.id.asc()))
+    lands = list(rows.scalars().all())
+    if index <= 0 or index > len(lands):
+        return None
+    return lands[index - 1]
+
+
 async def _apply_land_decay(session: AsyncSession, instance_row: Any) -> Any:
     """根据时间推进土地状态衰减与温度变化。"""
     now = datetime.now()
@@ -67,15 +79,15 @@ async def _apply_land_decay(session: AsyncSession, instance_row: Any) -> Any:
         )
     )
     await session.commit()
-    return await _read_crop_instance(session, instance_row["land_id"])
+    return await _read_crop_instance(session, instance_row["index"])
 
 
-async def _read_crop_instance(session: AsyncSession, land_id: int) -> Optional[Any]:
-    """读取土地上的当前作物实例。"""
+async def _read_crop_instance(session: AsyncSession, index: int) -> Optional[Any]:
+    """读取指定序号土地上的当前作物实例。"""
     result = await session.execute(
         select(
             CropInstance.id,
-            CropInstance.land_id,
+            CropInstance.index,
             CropInstance.crop_id,
             CropInstance.planted_at,
             CropInstance.last_state_update_at,
@@ -86,14 +98,61 @@ async def _read_crop_instance(session: AsyncSession, land_id: int) -> Optional[A
             Crop.growth_seconds,
             Crop.price.label("crop_price"),
             Crop.description.label("crop_description"),
-            LandPlot.level.label("land_level"),
-            LandPlot.growth_multiplier.label("growth_multiplier"),
+            Crop.profit_price,
         )
         .join(Crop, Crop.id == CropInstance.crop_id)
-        .join(LandPlot, LandPlot.id == CropInstance.land_id)
-        .where(CropInstance.land_id == land_id)
+        .where(CropInstance.index == index)
     )
-    return result.mappings().first()
+    row = result.mappings().first()
+    if row is None:
+        return None
+
+    land = await _get_land_by_index(session, index)
+    return {
+        **row,
+        "land_id": land.id if land is not None else None,
+        "land_level": land.level if land is not None else DEFAULT_LAND_LEVEL,
+        "growth_multiplier": land.growth_multiplier if land is not None else DEFAULT_GROWTH_MULTIPLIER,
+    }
+
+
+async def _read_crop_instances(session: AsyncSession) -> list[Any]:
+    result = await session.execute(
+        select(
+            CropInstance.id,
+            CropInstance.index,
+            CropInstance.crop_id,
+            CropInstance.planted_at,
+            CropInstance.last_state_update_at,
+            CropInstance.water,
+            CropInstance.fertility,
+            CropInstance.temperature,
+            Crop.name.label("crop_name"),
+            Crop.growth_seconds,
+            Crop.price.label("crop_price"),
+            Crop.description.label("crop_description"),
+            Crop.profit_price,
+        )
+        .join(Crop, Crop.id == CropInstance.crop_id)
+        .order_by(CropInstance.index.asc())
+    )
+    rows = list(result.mappings().all())
+
+    lands_result = await session.execute(select(LandPlot).order_by(LandPlot.id.asc()))
+    lands = list(lands_result.scalars().all())
+
+    instances: list[dict[str, Any]] = []
+    for row in rows:
+        land = lands[row["index"] - 1] if 0 < row["index"] <= len(lands) else None
+        instances.append(
+            {
+                **row,
+                "land_id": land.id if land is not None else None,
+                "land_level": land.level if land is not None else DEFAULT_LAND_LEVEL,
+                "growth_multiplier": land.growth_multiplier if land is not None else DEFAULT_GROWTH_MULTIPLIER,
+            }
+        )
+    return instances
 
 
 def _calc_growth_stage(instance_row: Any) -> tuple[str, float]:
@@ -120,7 +179,7 @@ def _build_farming_status(instance_row: Any) -> dict[str, Any]:
     """构建作物状态响应。"""
     stage, effective_seconds = _calc_growth_stage(instance_row)
     return {
-        "land_id": instance_row["land_id"],
+        "index": instance_row["index"],
         "crop_id": instance_row["crop_id"],
         "crop_name": instance_row["crop_name"],
         "crop_description": instance_row["crop_description"],
@@ -133,6 +192,29 @@ def _build_farming_status(instance_row: Any) -> dict[str, Any]:
         "fertility": round(instance_row["fertility"], 2),
         "temperature": round(instance_row["temperature"], 2),
         "can_harvest": stage == MATURE_STAGE,
+    }
+
+
+def _calc_remain_growth_time(instance_row: Any) -> int:
+    _, effective_seconds = _calc_growth_stage(instance_row)
+    return ceil(max(0.0, instance_row["growth_seconds"] - effective_seconds))
+
+
+def _build_land_info(instance_row: Any) -> dict[str, Any]:
+    return {
+        "Info": {
+            "id": instance_row["crop_id"],
+            "name": instance_row["crop_name"],
+            "growth_seconds": instance_row["growth_seconds"],
+            "price": instance_row["crop_price"],
+            "description": instance_row["crop_description"],
+            "profit_price": instance_row["profit_price"],
+        },
+        "index": instance_row["index"],
+        "remainGrowthTime": _calc_remain_growth_time(instance_row),
+        "water": round(instance_row["water"]),
+        "fertility": round(instance_row["fertility"]),
+        "temperature": round(instance_row["temperature"]),
     }
 
 
@@ -152,22 +234,29 @@ async def list_crops() -> dict[str, list[dict[str, Any]]]:
     return {"plants": crops}
 
 
-async def plant_crop(land_id: int, crop_id: int) -> dict[str, Any]:
-    """在指定土地上种植作物。"""
+async def list_land_info() ->  dict[str,list[dict[str, Any]]]:
     async with AsyncSessionLocal() as session:
-        land = await session.get(LandPlot, land_id)
-        if land is None:
-            return {"status": "failed", "reason": "land not found"}
+        instances = await _read_crop_instances(session)
+        refreshed = [await _apply_land_decay(session, instance) for instance in instances]
+    return {"growingPlants": [_build_land_info(instance) for instance in refreshed]}
+
+
+async def plant_crop(index: int, crop_id: int) -> dict[str, Any]:
+    """在指定序号的土地上种植作物。"""
+    async with AsyncSessionLocal() as session:
         crop = await session.get(Crop, crop_id)
         if crop is None:
             return {"status": "failed", "reason": "crop not found"}
-        active = await _read_crop_instance(session, land_id)
+        active_result = await session.execute(
+            select(CropInstance.id).where(CropInstance.index == index)
+        )
+        active = active_result.scalar_one_or_none()
         if active is not None:
             return {"status": "failed", "reason": "land already planted"}
 
         now = datetime.now()
         instance = CropInstance(
-            land_id=land_id,
+            index=index,
             crop_id=crop_id,
             planted_at=now,
             last_state_update_at=now,
@@ -177,24 +266,32 @@ async def plant_crop(land_id: int, crop_id: int) -> dict[str, Any]:
         )
         session.add(instance)
         await session.commit()
-        current = await _read_crop_instance(session, land.id)
-    return {"status": "planted", "crop_name": crop.name, "land_id": land.id, "state": _build_farming_status(current)}
+        current = await _read_crop_instance(session, index)
+        if current is None:
+            return {"status": "failed", "reason": "crop state not found"}
+    return {"status": "planted", "crop_name": crop.name, "index": index, "state": _build_farming_status(current)}
 
 
-async def query_crop_status(land_id: int) -> dict[str, Any]:
-    """查询指定土地的作物状态。"""
+async def query_crop_status(index: int) -> dict[str, Any]:
+    """查询指定序号土地的作物状态。"""
     async with AsyncSessionLocal() as session:
-        instance = await _read_crop_instance(session, land_id)
+        land = await _get_land_by_index(session, index)
+        if land is None:
+            return {"status": "failed", "reason": "land index not found"}
+        instance = await _read_crop_instance(session, index)
         if instance is None:
-            return {"status": "empty", "land_id": land_id}
+            return {"status": "empty", "index": index}
         refreshed = await _apply_land_decay(session, instance)
     return {"status": "growing", "state": _build_farming_status(refreshed)}
 
 
-async def harvest_crop(land_id: int) -> dict[str, Any]:
-    """采集成熟作物。"""
+async def harvest_crop(index: int) -> dict[str, Any]:
+    """采集指定序号土地上的成熟作物。"""
     async with AsyncSessionLocal() as session:
-        instance = await _read_crop_instance(session, land_id)
+        land = await _get_land_by_index(session, index)
+        if land is None:
+            return {"status": "failed", "reason": "land index not found"}
+        instance = await _read_crop_instance(session, index)
         if instance is None:
             return {"status": "failed", "reason": "no crop"}
         refreshed = await _apply_land_decay(session, instance)
@@ -205,7 +302,7 @@ async def harvest_crop(land_id: int) -> dict[str, Any]:
         await session.commit()
         return {
             "status": "harvested",
-            "land_id": land_id,
+            "index": index,
             "crop_name": refreshed["crop_name"],
             "income": refreshed["crop_price"],
         }
