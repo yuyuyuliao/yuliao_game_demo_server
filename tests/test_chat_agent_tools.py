@@ -118,6 +118,49 @@ def test_chat_agent_falls_back_when_tool_judgement_model_unavailable(caplog: pyt
     assert "聊天工具判定模型不可用或返回无效结果，已回退到本地规则。" in caplog.text
 
 
+def test_game_data_query_runs_player_info_before_farm_info_when_both_are_needed():
+    calls: list[str] = []
+    prompts: list[str] = []
+
+    def read_player(player_id: str) -> str:
+        calls.append("player_info")
+        assert player_id == "player-seq"
+        return "\u91d1\u5e01\uff1a520"
+
+    def read_farm(player_id: str) -> str:
+        calls.append("farm_info")
+        assert player_id == "player-seq"
+        return "\u53ef\u79cd\u4f5c\u7269\uff1a\u80e1\u841d\u535c"
+
+    assistant = ChatAssistant(
+        player_info_reader=read_player,
+        farm_info_reader=read_farm,
+    )
+    model_outputs = iter(
+        [
+            '{"intent":"game_data_query","reason":"needs player and farm data"}',
+            '{"final_answer":"\u4f60\u73b0\u5728\u6709 520 \u91d1\u5e01\uff0c\u53ef\u4ee5\u79cd\u80e1\u841d\u535c\u3002"}',
+        ]
+    )
+
+    def fake_call_openai(prompt: str) -> str:
+        prompts.append(prompt)
+        return next(model_outputs)
+
+    with patch.object(assistant, "_call_openai", side_effect=fake_call_openai):
+        result = assistant.reply(
+            [],
+            "\u6211\u73b0\u5728\u6709\u591a\u5c11\u91d1\u5e01\uff0c\u53ef\u4ee5\u79cd\u4e9b\u4ec0\u4e48\uff1f",
+            player_id="player-seq",
+        )
+
+    assert calls == ["player_info", "farm_info"]
+    assert len(prompts) == 2
+    assert "\u91d1\u5e01\uff1a520" in prompts[-1]
+    assert "\u53ef\u79cd\u4f5c\u7269\uff1a\u80e1\u841d\u535c" in prompts[-1]
+    assert result["response"] == "\u4f60\u73b0\u5728\u6709 520 \u91d1\u5e01\uff0c\u53ef\u4ee5\u79cd\u80e1\u841d\u535c\u3002"
+
+
 def test_daily_chat_can_use_tools_and_remember_previous_talk():
     _upsert_player("player-memory", "小农", gold=300, level=5)
     _plant_crop(2, 1)

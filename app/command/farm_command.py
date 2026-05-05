@@ -4,11 +4,11 @@ from datetime import datetime
 from math import ceil
 from typing import Any, Optional
 
-from sqlalchemy import delete, select, update
+from sqlalchemy import delete, or_, select, update
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.command.database import AsyncSessionLocal
-from app.model import Crop, CropInstance, LandPlot
+from app.model import Crop, CropInstance, LandPlot, Player
 
 DEFAULT_LAND_LEVEL = 1
 DEFAULT_GROWTH_MULTIPLIER = 1.0
@@ -51,6 +51,21 @@ async def _get_land_by_index(session: AsyncSession, index: int) -> Optional[Land
     if index <= 0 or index > len(lands):
         return None
     return lands[index - 1]
+
+
+async def _query_player(session: AsyncSession, player_id: str) -> Optional[Player]:
+    if not player_id:
+        return None
+
+    if player_id.isdigit():
+        player = await session.get(Player, int(player_id))
+        if player is not None:
+            return player
+
+    result = await session.execute(
+        select(Player).where(or_(Player.account == player_id, Player.name == player_id))
+    )
+    return result.scalar_one_or_none()
 
 
 async def _apply_land_decay(session: AsyncSession, instance_row: Any) -> Any:
@@ -241,9 +256,13 @@ async def list_land_info() ->  dict[str,list[dict[str, Any]]]:
     return {"growingPlants": [_build_land_info(instance) for instance in refreshed]}
 
 
-async def plant_crop(index: int, crop_id: int) -> dict[str, Any]:
+async def plant_crop(player_id: str, index: int, crop_id: int) -> dict[str, Any]:
     """在指定序号的土地上种植作物。"""
     async with AsyncSessionLocal() as session:
+        player = await _query_player(session, player_id)
+        if player is None:
+            return {"status": "failed", "reason": f"player not found: {player_id}"}
+
         crop = await session.get(Crop, crop_id)
         if crop is None:
             return {"status": "failed", "reason": "crop not found"}
@@ -253,6 +272,14 @@ async def plant_crop(index: int, crop_id: int) -> dict[str, Any]:
         active = active_result.scalar_one_or_none()
         if active is not None:
             return {"status": "failed", "reason": "land already planted"}
+
+        if player.gold < crop.price:
+            return {
+                "status": "failed",
+                "reason": "insufficient gold",
+                "gold": player.gold,
+                "required_gold": crop.price,
+            }
 
         now = datetime.now()
         instance = CropInstance(
@@ -265,11 +292,21 @@ async def plant_crop(index: int, crop_id: int) -> dict[str, Any]:
             temperature=FARM_DEFAULT_TEMPERATURE,
         )
         session.add(instance)
-        await session.commit()
+        player.gold -= crop.price
+        current_gold = player.gold
+        await session.flush()
         current = await _read_crop_instance(session, index)
         if current is None:
             return {"status": "failed", "reason": "crop state not found"}
-    return {"status": "planted", "crop_name": crop.name, "index": index, "state": _build_farming_status(current)}
+        await session.commit()
+    return {
+        "status": "planted",
+        "crop_name": crop.name,
+        "index": index,
+        "gold": current_gold,
+        "cost": crop.price,
+        "state": _build_farming_status(current),
+    }
 
 
 async def query_crop_status(index: int) -> dict[str, Any]:

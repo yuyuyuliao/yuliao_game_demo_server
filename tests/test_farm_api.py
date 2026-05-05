@@ -33,6 +33,27 @@ def _clear_land(index: int) -> None:
         conn.commit()
 
 
+def _upsert_player(account: str, name: str, gold: int = 0, level: int = 1) -> None:
+    with sqlite3.connect(DB_PATH) as conn:
+        conn.execute(
+            """
+            INSERT INTO players (name, account, password, gold, level)
+            VALUES (?, ?, ?, ?, ?)
+            ON CONFLICT(account) DO UPDATE SET
+                name=excluded.name,
+                gold=excluded.gold,
+                level=excluded.level
+            """,
+            (name, account, "hashed-password", gold, level),
+        )
+        conn.commit()
+
+
+def _crop_price(crop_id: int) -> int:
+    with sqlite3.connect(DB_PATH) as conn:
+        return conn.execute("SELECT price FROM crops WHERE id=?", (crop_id,)).fetchone()[0]
+
+
 def test_farm_lands_are_seeded_with_increasing_price():
     response = client.get("/farm/lands")
     assert response.status_code == 200
@@ -58,12 +79,14 @@ def test_farm_crops_are_seeded_with_basic_info():
 def test_farm_land_info_returns_current_planted_crop_array():
     index = 3
     crop_id = 1
+    player_id = "farm-land-info-player"
     _clear_land(index)
-    client.post("/farm/plant", json={"index": index, "plantId": crop_id})
+    _upsert_player(player_id, "土地信息玩家", gold=1000)
+    client.post("/farm/plant", json={"player_id": player_id, "index": index, "plantId": crop_id})
 
     response = client.get("/farm/land_info")
     assert response.status_code == 200
-    body = response.json()
+    body = response.json()["growingPlants"]
     assert isinstance(body, list)
     matching = [item for item in body if item["Info"]["id"] == crop_id]
     assert matching
@@ -98,13 +121,25 @@ def test_farm_land_info_returns_current_planted_crop_array():
 def test_farm_plant_query_and_harvest():
     index = 1
     crop_id = 1
+    player_id = "farm-plant-harvest-player"
     _clear_land(index)
+    _upsert_player(player_id, "种植收获玩家", gold=1000)
+    crop_price = _crop_price(crop_id)
 
-    plant = client.post("/farm/plant", json={"index": index, "plantId": crop_id})
+    plant = client.post("/farm/plant", json={"player_id": player_id, "index": index, "plantId": crop_id})
     assert plant.status_code == 200
     planted = plant.json()
     assert planted["status"] == "planted"
+    assert planted["cost"] == crop_price
+    assert planted["gold"] == 1000 - crop_price
     assert planted["state"]["growth_stage"] == "刚种下"
+
+    with sqlite3.connect(DB_PATH) as conn:
+        saved_gold = conn.execute(
+            "SELECT gold FROM players WHERE account=?",
+            (player_id,),
+        ).fetchone()[0]
+    assert saved_gold == 1000 - crop_price
 
     with sqlite3.connect(DB_PATH) as conn:
         conn.execute(
@@ -139,8 +174,10 @@ def test_farm_plant_query_and_harvest():
 def test_farm_state_decay_after_elapsed_time():
     index = 2
     crop_id = 1
+    player_id = "farm-state-decay-player"
     _clear_land(index)
-    client.post("/farm/plant", json={"index": index, "plantId": crop_id})
+    _upsert_player(player_id, "状态衰减玩家", gold=1000)
+    client.post("/farm/plant", json={"player_id": player_id, "index": index, "plantId": crop_id})
 
     first = client.get(f"/farm/status/{index}").json()["state"]
     with sqlite3.connect(DB_PATH) as conn:
@@ -153,3 +190,26 @@ def test_farm_state_decay_after_elapsed_time():
     assert second["water"] < first["water"]
     assert second["fertility"] < first["fertility"]
     assert second["temperature"] != first["temperature"]
+
+
+def test_farm_plant_rejects_insufficient_gold_without_planting():
+    index = 4
+    crop_id = 1
+    player_id = "farm-poor-player"
+    _clear_land(index)
+    _upsert_player(player_id, "金币不足玩家", gold=0)
+    crop_price = _crop_price(crop_id)
+
+    response = client.post("/farm/plant", json={"player_id": player_id, "index": index, "plantId": crop_id})
+
+    assert response.status_code == 200
+    body = response.json()
+    assert body == {
+        "status": "failed",
+        "reason": "insufficient gold",
+        "gold": 0,
+        "required_gold": crop_price,
+    }
+    with sqlite3.connect(DB_PATH) as conn:
+        assert conn.execute('SELECT COUNT(*) FROM crop_instances WHERE "index"=?', (index,)).fetchone()[0] == 0
+        assert conn.execute("SELECT gold FROM players WHERE account=?", (player_id,)).fetchone()[0] == 0

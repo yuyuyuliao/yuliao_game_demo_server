@@ -108,7 +108,7 @@ uvicorn app.main:app --reload
 - `POST /chess/opponent-move`：根据当前局面，作为对手给出下一步落位
 - `GET /farm/crops`：查询全部作物基础信息（不是土地上的种植实例）
 - `GET /farm/lands`：查询全部土地（自增ID、价格、等级、描述）
-- `POST /farm/plant`：在指定土地种植作物
+- `POST /farm/plant`：在指定土地种植作物，请求体包含 `player_id`、`index`、`plantId`；种植成功后扣除作物价格并返回当前 `gold`
 - `GET /farm/status/{index}`：按土地序号查询当前作物与生长阶段（含水量、肥力、温度）
 - `POST /farm/harvest`：采集成熟作物
 
