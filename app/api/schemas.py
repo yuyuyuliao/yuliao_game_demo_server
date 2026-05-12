@@ -9,13 +9,23 @@ class ChatRecordRequest(BaseModel):
     """聊天记录写入请求体。"""
 
     player_id: str = Field(min_length=1)
+    conversation_id: str = Field(min_length=1)
+    role: str = Field(min_length=1)
     text: str = Field(min_length=1)
 
 
-class DailyChatRequest(BaseModel):
-    """日常聊天请求体，包含玩家 ID 和当前消息。"""
+class ChatMessagesRequest(BaseModel):
+    """查询对话消息请求体。"""
 
     player_id: str = Field(min_length=1)
+    conversation_id: str = Field(min_length=1)
+
+
+class DailyChatRequest(BaseModel):
+    """日常聊天请求体，包含玩家 ID、对话框 ID 和当前消息。"""
+
+    player_id: str = Field(min_length=1)
+    conversation_id: str = Field(min_length=1)
     message: str = Field(min_length=1)
 
 

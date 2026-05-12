@@ -2,7 +2,7 @@ from __future__ import annotations
 
 from datetime import datetime
 
-from sqlalchemy import DateTime, String, text as sql_text
+from sqlalchemy import DateTime, Integer, String, text as sql_text
 from sqlalchemy.orm import Mapped, mapped_column
 
 from app.model.base import BaseModel
@@ -13,11 +13,11 @@ class ChatHistory(BaseModel):
 
     __tablename__ = "chat_history"
 
-    # 玩家ID，非空
-    player_id: Mapped[str] = mapped_column(String, nullable=False)
-    # 聊天文本，非空
+    player_id: Mapped[str] = mapped_column(String, nullable=False, index=True)
+    conversation_id: Mapped[str] = mapped_column(String, nullable=False, index=True)
+    role: Mapped[str] = mapped_column(String, nullable=False)
     text: Mapped[str] = mapped_column(String, nullable=False)
-    # 创建时间，非空，默认为当前时间
+    message_order: Mapped[int] = mapped_column(Integer, nullable=False)
     created_at: Mapped[datetime | None] = mapped_column(
         DateTime,
         nullable=True,

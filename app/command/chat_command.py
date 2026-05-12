@@ -2,7 +2,7 @@ from __future__ import annotations
 
 import os
 
-from sqlalchemy import select
+from sqlalchemy import func, select
 
 from app.agent import ChatAssistant
 from app.command.database import AsyncSessionLocal
@@ -23,26 +23,77 @@ chat_assistant = ChatAssistant(
 )
 
 
-async def record_chat(player_id: str, text: str) -> dict[str, str]:
-    """写入玩家聊天记录到 SQLite。"""
+async def _next_message_order(session, player_id: str, conversation_id: str) -> int:
+    value = await session.scalar(
+        select(func.max(ChatHistory.message_order)).where(
+            ChatHistory.player_id == player_id,
+            ChatHistory.conversation_id == conversation_id,
+        )
+    )
+    return (value or 0) + 1
+
+
+async def record_chat(player_id: str, conversation_id: str, role: str, text: str) -> dict[str, str]:
+    """写入聊天记录到 SQLite。"""
     async with AsyncSessionLocal() as session:
-        session.add(ChatHistory(player_id=player_id, text=text))
+        message_order = await _next_message_order(session, player_id, conversation_id)
+        session.add(
+            ChatHistory(
+                player_id=player_id,
+                conversation_id=conversation_id,
+                role=role,
+                text=text,
+                message_order=message_order,
+            )
+        )
         await session.commit()
     return {"status": "saved"}
 
 
-async def daily_chat(player_id: str, message: str) -> dict[str, str]:
+async def list_messages(player_id: str, conversation_id: str) -> dict[str, object]:
+    """按顺序返回单个对话框内的消息。"""
+    async with AsyncSessionLocal() as session:
+        rows = await session.execute(
+            select(ChatHistory)
+            .where(
+                ChatHistory.player_id == player_id,
+                ChatHistory.conversation_id == conversation_id,
+            )
+            .order_by(ChatHistory.message_order.asc(), ChatHistory.id.asc())
+        )
+        messages = [
+            {
+                "id": item.id,
+                "player_id": item.player_id,
+                "conversation_id": item.conversation_id,
+                "role": item.role,
+                "text": item.text,
+                "message_order": item.message_order,
+                "created_at": item.created_at.isoformat() if item.created_at else None,
+            }
+            for item in rows.scalars().all()
+        ]
+    return {"conversation_id": conversation_id, "messages": messages}
+
+
+async def daily_chat(player_id: str, conversation_id: str, message: str) -> dict[str, str]:
     """结合历史聊天与知识库返回日常回复。"""
     async with AsyncSessionLocal() as session:
         rows = await session.execute(
             select(ChatHistory.text)
-            .where(ChatHistory.player_id == player_id)
-            .order_by(ChatHistory.id.desc())
+            .where(
+                ChatHistory.player_id == player_id,
+                ChatHistory.conversation_id == conversation_id,
+            )
+            .order_by(ChatHistory.message_order.desc())
             .limit(5)
         )
         history = list(rows.scalars().all())[::-1]
         result = chat_assistant.reply(history, message, player_id=player_id)
-        session.add(ChatHistory(player_id=player_id, text=f"{PLAYER_HISTORY_PREFIX}{message}"))
-        session.add(ChatHistory(player_id=player_id, text=f"{ASSISTANT_HISTORY_PREFIX}{result['response']}"))
+
+        user_order = await _next_message_order(session, player_id, conversation_id)
+        ai_order = user_order + 1
+        session.add(ChatHistory(player_id=player_id, conversation_id=conversation_id, role="user", text=f"{PLAYER_HISTORY_PREFIX}{message}", message_order=user_order))
+        session.add(ChatHistory(player_id=player_id, conversation_id=conversation_id, role="assistant", text=f"{ASSISTANT_HISTORY_PREFIX}{result['response']}", message_order=ai_order))
         await session.commit()
     return result
