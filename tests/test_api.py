@@ -45,14 +45,14 @@ def test_health():
 def test_record_and_daily_chat():
     record = client.post(
         "/chat/record",
-        json={"player_id": "player-1", "text": "我喜欢下棋"},
+        json={"player_id": "player-1", "conversation_id": "conv-1", "role": "user", "text": "我喜欢下棋"},
     )
     assert record.status_code == 200
     assert record.json()["status"] == "saved"
 
     daily = client.post(
         "/chat/daily",
-        json={"player_id": "player-1", "message": "给我一个建议"},
+        json={"player_id": "player-1", "conversation_id": "conv-1", "message": "给我一个建议"},
     )
     assert daily.status_code == 200
     response = daily.json()["response"]
@@ -61,6 +61,28 @@ def test_record_and_daily_chat():
     assert "给你一个相关建议" not in response
 
 
+
+
+def test_list_chat_messages_in_order():
+    client.post(
+        "/chat/record",
+        json={"player_id": "player-order", "conversation_id": "conv-order", "role": "user", "text": "第一条"},
+    )
+    client.post(
+        "/chat/record",
+        json={"player_id": "player-order", "conversation_id": "conv-order", "role": "assistant", "text": "第二条"},
+    )
+
+    response = client.post(
+        "/chat/messages",
+        json={"player_id": "player-order", "conversation_id": "conv-order"},
+    )
+
+    assert response.status_code == 200
+    body = response.json()
+    assert body["conversation_id"] == "conv-order"
+    assert [item["text"] for item in body["messages"]][-2:] == ["第一条", "第二条"]
+    assert body["messages"][-2]["message_order"] < body["messages"][-1]["message_order"]
 def test_chat_assistant_calls_openai_client():
     captured = {}
 
