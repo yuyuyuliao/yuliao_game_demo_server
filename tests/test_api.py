@@ -63,6 +63,23 @@ def test_record_and_daily_chat():
 
 
 
+def test_create_chat_window_returns_unique_conversation_id():
+    response1 = client.post("/chat/window/create", json={"player_id": "player-window"})
+    response2 = client.post("/chat/window/create", json={"player_id": "player-window"})
+
+    assert response1.status_code == 200
+    assert response2.status_code == 200
+
+    body1 = response1.json()
+    body2 = response2.json()
+
+    assert body1["player_id"] == "player-window"
+    assert body2["player_id"] == "player-window"
+    assert body1["conversation_id"]
+    assert body2["conversation_id"]
+    assert body1["conversation_id"] != body2["conversation_id"]
+
+
 def test_list_chat_messages_in_order():
     client.post(
         "/chat/record",
