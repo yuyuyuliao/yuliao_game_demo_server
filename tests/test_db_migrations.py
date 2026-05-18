@@ -7,7 +7,7 @@ import sys
 from pathlib import Path
 
 from app.command.database import DB_PATH, init_db
-from app.model import BaseModel, ChatHistory, Crop, CropInstance, LandPlot, Player
+from app.model import BaseModel, ChatHistory, Crop, CropInstance, LandPlot, Player, PlayerConversationWindow
 
 
 REPO_ROOT = Path(__file__).resolve().parents[1]
@@ -22,7 +22,8 @@ def test_init_db_runs_migrations_only(tmp_path: Path):
     assert Crop.__tablename__ == "crops"
     assert CropInstance.__tablename__ == "crop_instances"
     assert Player.__tablename__ == "players"
-    assert set(BaseModel.metadata.tables) == {"chat_history", "land_plots", "crops", "crop_instances", "players"}
+    assert PlayerConversationWindow.__tablename__ == "player_conversation_windows"
+    assert set(BaseModel.metadata.tables) == {"chat_history", "land_plots", "crops", "crop_instances", "players", "player_conversation_windows"}
 
     init_db(db_path)
     init_db(db_path)
@@ -34,8 +35,8 @@ def test_init_db_runs_migrations_only(tmp_path: Path):
                 "SELECT name FROM sqlite_master WHERE type='table' AND name NOT LIKE 'sqlite_%'"
             ).fetchall()
         }
-        assert table_names == {"chat_history", "land_plots", "crops", "crop_instances", "players"}
-        assert conn.execute("PRAGMA user_version").fetchone()[0] == 4
+        assert table_names == {"chat_history", "land_plots", "crops", "crop_instances", "players", "player_conversation_windows"}
+        assert conn.execute("PRAGMA user_version").fetchone()[0] == 6
         crop_columns = {
             row[1]
             for row in conn.execute("PRAGMA table_info(crops)").fetchall()

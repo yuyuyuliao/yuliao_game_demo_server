@@ -29,6 +29,12 @@ class DailyChatRequest(BaseModel):
     message: str = Field(min_length=1)
 
 
+
+
+class ChatWindowCreateRequest(BaseModel):
+    """创建玩家对话窗口请求体。"""
+
+    player_id: str = Field(min_length=1)
 class MinesweeperRequest(BaseModel):
     """扫雷建议请求体，board 为二维棋盘。"""
 
