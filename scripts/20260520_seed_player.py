@@ -29,9 +29,9 @@ async def seed_player(db_path: Path) -> None:
             session.add(
                 Player(
                     id=1,
-                    name="Player 1",
-                    account="player1",
-                    password="demo-password-hash",
+                    name="yuliao",
+                    account="yuliao",
+                    password="19901226xjh",
                     gold=0,
                     level=1,
                 )
