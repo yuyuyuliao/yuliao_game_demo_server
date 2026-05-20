@@ -1,10 +1,12 @@
 from __future__ import annotations
 
+from datetime import datetime
+
 from sqlalchemy import create_engine, or_
 from sqlalchemy.orm import Session, sessionmaker
 
 from app.command.database import DB_PATH
-from app.model import Crop, CropInstance, LandPlot, Player
+from app.model import Crop, CropInstance, Player
 
 SYNC_ENGINE = create_engine(
     f"sqlite:///{DB_PATH}",
@@ -28,67 +30,92 @@ def _query_player(session: Session, player_id: str) -> Player | None:
 
 def read_player_info(player_id: str) -> str:
     """读取玩家基础资料，支持按玩家 ID、账号或名称查询。"""
+    print(f"[chat_tool] read_player_info start player_id={player_id!r}")
     if not player_id:
-        return "未提供玩家标识，暂时无法读取玩家资料。"
+        result = "未提供玩家标识，暂时无法读取玩家资料。"
+        print(f"[chat_tool] read_player_info result={result!r}")
+        return result
 
     with SyncSessionLocal() as session:
         player = _query_player(session, player_id)
 
     if player is None:
-        return f"暂未找到玩家 {player_id} 的资料。"
+        result = f"暂未找到玩家 {player_id} 的资料。"
+        print(f"[chat_tool] read_player_info result={result!r}")
+        return result
 
-    return (
+    result = (
         f"玩家{player.name}（ID：{player.id}，账号：{player.account}），"
         f"等级：{player.level}，金币：{player.gold}。"
     )
+    print(f"[chat_tool] read_player_info result={result!r}")
+    return result
 
 
 def read_player_farm_info(player_id: str) -> str:
-    """读取当前玩家可查看的田地概况。"""
+    """读取当前玩家可查看的作物与种植概况。"""
+    print(f"[chat_tool] read_player_farm_info start player_id={player_id!r}")
     with SyncSessionLocal() as session:
         player = _query_player(session, player_id)
-        lands = session.query(LandPlot).order_by(LandPlot.id.asc()).all()
-        instances = {
-            row.index: row
-            for row in (
-                session.query(
-                    CropInstance.index.label("index"),
-                    Crop.name.label("crop_name"),
-                    CropInstance.water,
-                    CropInstance.fertility,
-                    CropInstance.temperature,
-                )
-                .outerjoin(Crop, Crop.id == CropInstance.crop_id)
-                .all()
+        crops = session.query(Crop).order_by(Crop.id.asc()).all()
+        instances = (
+            session.query(
+                CropInstance.index.label("index"),
+                CropInstance.planted_at,
+                CropInstance.water,
+                CropInstance.fertility,
+                CropInstance.temperature,
+                Crop.name.label("crop_name"),
+                Crop.growth_seconds,
+                Crop.price,
+                Crop.description,
+                Crop.profit_price,
             )
-        }
+            .join(Crop, Crop.id == CropInstance.crop_id)
+            .order_by(CropInstance.index.asc())
+            .all()
+        )
 
-    if not lands:
-        return "当前还没有初始化任何田地数据。"
+    print(
+        "[chat_tool] read_player_farm_info db "
+        f"player_found={player is not None} crop_count={len(crops)} instance_count={len(instances)}"
+    )
+    if not crops:
+        result = "当前还没有初始化任何作物数据。"
+        print(f"[chat_tool] read_player_farm_info result={result!r}")
+        return result
 
     owner_name = player.name if player is not None else (player_id if player_id else "当前玩家")
-    planted_rows = []
-    for index, land in enumerate(lands, start=1):
-        instance = instances.get(index)
-        if instance is None or not instance.crop_name:
-            continue
-        planted_rows.append((land, instance))
-
-    empty_count = len(lands) - len(planted_rows)
-    parts = [
-        f"{owner_name}当前可查看 {len(lands)} 块田地，"
-        f"其中 {len(planted_rows)} 块已种植，{empty_count} 块空闲。"
-    ]
-    if planted_rows:
-        samples = []
-        for land, instance in planted_rows[:3]:
-            samples.append(
-                f"{land.name}正在种植{instance.crop_name}，"
-                f"水分{instance.water:.1f}、肥力{instance.fertility:.1f}、温度{instance.temperature:.1f}℃"
+    parts = [f"{owner_name}当前可查看 {len(instances)} 个正在生长的作物实例。"]
+    if instances:
+        growing = []
+        for instance in instances[:5]:
+            remain_seconds = _calc_remain_growth_seconds(
+                planted_at=instance.planted_at,
+                growth_seconds=instance.growth_seconds,
             )
-        parts.append("已种植地块：" + "；".join(samples))
+            status = "可收获" if remain_seconds <= 0 else f"预计还需 {remain_seconds} 秒成熟"
+            growing.append(
+                f"{instance.index} 号位种着{instance.crop_name}，"
+                f"{status}，水分{instance.water:.1f}、养分{instance.fertility:.1f}、温度{instance.temperature:.1f}℃"
+            )
+        suffix = f"；另有 {len(instances) - 5} 个作物实例未展示" if len(instances) > 5 else ""
+        parts.append("当前种植状态：" + "；".join(growing) + suffix + "。")
     else:
-        parts.append("当前所有田地都还没有种下作物。")
+        parts.append("当前还没有正在生长的作物。")
 
-    parts.append("演示服暂未区分个人土地归属，以上为该玩家当前可查看的农场概况。")
-    return "".join(parts)
+    crop_options = []
+    for crop in crops:
+        crop_options.append(
+            f"{crop.name}（成本{crop.price}，成熟约{crop.growth_seconds}秒，收获价值{crop.profit_price}）"
+        )
+    parts.append("可种作物：" + "；".join(crop_options) + "。")
+    result = "".join(parts)
+    print(f"[chat_tool] read_player_farm_info result={result!r}")
+    return result
+
+
+def _calc_remain_growth_seconds(*, planted_at: datetime, growth_seconds: int) -> int:
+    """按 CropInstance 的种植时间和 Crop 的生长时长计算剩余成熟时间。"""
+    elapsed_seconds = max(0, int((datetime.now() - planted_at).total_seconds()))
+    return max(0, growth_seconds - elapsed_seconds)

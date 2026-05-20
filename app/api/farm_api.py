@@ -35,7 +35,7 @@ async def list_land_info_api() -> dict[str,list[dict[str, Any]]]:
 @router.post("/farm/plant")
 async def plant_crop_api(payload: PlantRequest) -> dict[str, Any]:
     """在指定土地上种植作物。"""
-    return await plant_crop_command.run(payload.index, payload.plantId)
+    return await plant_crop_command.run(payload.player_id, payload.index, payload.plantId)
 
 
 @router.get("/farm/status/{index}")

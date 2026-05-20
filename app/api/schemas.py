@@ -64,6 +64,7 @@ class MinesweeperWinRequest(BaseModel):
 class PlantRequest(BaseModel):
     """种植请求体。"""
 
+    player_id: str = Field(min_length=1)
     index: int
     plantId: int = Field(gt=0)
 

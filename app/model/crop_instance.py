@@ -9,11 +9,11 @@ from app.model.base import BaseModel
 
 
 class CropInstance(BaseModel):
-    """土地上的作物实例。"""
+    """种植中的作物实例。"""
 
     __tablename__ = "crop_instances"
 
-    # 土地ID，唯一且非空
+    # 种植槽位序号，唯一且非空
     index: Mapped[int] = mapped_column(Integer, nullable=False, unique=True)
     # 作物ID，非空
     crop_id: Mapped[int] = mapped_column(Integer, ForeignKey("crops.id"), nullable=False)

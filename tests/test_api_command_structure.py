@@ -96,26 +96,28 @@ def test_farm_api_endpoints_delegate_to_matching_command_run(monkeypatch):
         return {"lands": [{"id": 99, "name": "delegated-land"}]}
 
     async def fake_list_land_info():
-        return [
-            {
-                "Info": {
-                    "id": 2,
-                    "name": "delegated-crop",
-                    "growth_seconds": 10,
-                    "price": 20,
-                    "description": "demo",
-                    "profit_price": 30,
-                },
-                "index": 7,
-                "remainGrowthTime": 4,
-                "water": 5,
-                "fertility": 6,
-                "temperature": 7,
-            }
-        ]
+        return {
+            "growingPlants": [
+                {
+                    "Info": {
+                        "id": 2,
+                        "name": "delegated-crop",
+                        "growth_seconds": 10,
+                        "price": 20,
+                        "description": "demo",
+                        "profit_price": 30,
+                    },
+                    "index": 7,
+                    "remainGrowthTime": 4,
+                    "water": 5,
+                    "fertility": 6,
+                    "temperature": 7,
+                }
+            ]
+        }
 
-    async def fake_plant_crop(index: int, crop_id: int):
-        return {"command": "plant_crop", "index": index, "crop_id": crop_id}
+    async def fake_plant_crop(player_id: str, index: int, crop_id: int):
+        return {"command": "plant_crop", "player_id": player_id, "index": index, "crop_id": crop_id}
 
     async def fake_query_crop_status(index: int):
         return {"command": "query_crop_status", "index": index}
@@ -132,25 +134,28 @@ def test_farm_api_endpoints_delegate_to_matching_command_run(monkeypatch):
 
     assert client.get("/farm/crops").json() == {"crops": [{"id": 66, "name": "delegated-crop"}]}
     assert client.get("/farm/lands").json() == {"lands": [{"id": 99, "name": "delegated-land"}]}
-    assert client.get("/farm/land_info").json() == [
-        {
-            "Info": {
-                "id": 2,
-                "name": "delegated-crop",
-                "growth_seconds": 10,
-                "price": 20,
-                "description": "demo",
-                "profit_price": 30,
-            },
-            "index": 7,
-            "remainGrowthTime": 4,
-            "water": 5,
-            "fertility": 6,
-            "temperature": 7,
-        }
-    ]
-    assert client.post("/farm/plant", json={"index": 2, "plantId": 3}).json() == {
+    assert client.get("/farm/land_info").json() == {
+        "growingPlants": [
+            {
+                "Info": {
+                    "id": 2,
+                    "name": "delegated-crop",
+                    "growth_seconds": 10,
+                    "price": 20,
+                    "description": "demo",
+                    "profit_price": 30,
+                },
+                "index": 7,
+                "remainGrowthTime": 4,
+                "water": 5,
+                "fertility": 6,
+                "temperature": 7,
+            }
+        ]
+    }
+    assert client.post("/farm/plant", json={"player_id": "player-plant", "index": 2, "plantId": 3}).json() == {
         "command": "plant_crop",
+        "player_id": "player-plant",
         "index": 2,
         "crop_id": 3,
     }

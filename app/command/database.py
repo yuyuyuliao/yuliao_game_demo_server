@@ -65,6 +65,15 @@ def _required_tables() -> tuple[str, ...]:
     return tuple(BaseModel.metadata.tables)
 
 
+async def _existing_table_names(conn: aiosqlite.Connection) -> set[str]:
+    table_rows = await (
+        await conn.execute(
+            "SELECT name FROM sqlite_master WHERE type='table' AND name NOT LIKE 'sqlite_%'"
+        )
+    ).fetchall()
+    return {table_row[0] for table_row in table_rows}
+
+
 def _temporary_engine(db_path: Path) -> AsyncEngine:
     """为非默认数据库路径创建临时引擎。"""
     return create_async_engine(build_database_url(db_path), future=True)
@@ -76,29 +85,24 @@ async def _run_migrations_async(db_path: Path) -> None:
     async with aiosqlite.connect(db_path) as conn:
         row = await (await conn.execute("PRAGMA user_version")).fetchone()
         current_version = row[0]
-        table_rows = await (
-            await conn.execute(
-                "SELECT name FROM sqlite_master WHERE type='table' AND name NOT LIKE 'sqlite_%'"
-            )
-        ).fetchall()
-        existing_tables = {table_row[0] for table_row in table_rows}
+        latest_version = max((_migration_version(migration_file) for migration_file in migration_files), default=0)
+        initial_version = _initial_migration_version()
+        existing_tables = await _existing_table_names(conn)
         missing_tables = sorted(set(_required_tables()) - existing_tables)
-        if current_version > 0 and missing_tables:
-            initial_version = _initial_migration_version()
-            if initial_version is not None and current_version == initial_version:
-                logger.warning(
-                    "Database at user_version=%s is missing key tables %s; re-running initial migration.",
-                    current_version,
-                    ", ".join(missing_tables),
-                )
-                current_version = 0
-            else:
-                missing_tables_str = ", ".join(missing_tables)
-                raise RuntimeError(
-                    f"database schema is inconsistent at user_version={current_version}: "
-                    f"missing tables: {missing_tables_str}; automatic repair only supports "
-                    f"the initial migration version {initial_version}"
-                )
+        if current_version > 0 and missing_tables and current_version == initial_version:
+            logger.warning(
+                "Database at user_version=%s is missing key tables %s; re-running initial migration.",
+                current_version,
+                ", ".join(missing_tables),
+            )
+            current_version = 0
+        elif current_version >= latest_version and missing_tables:
+            missing_tables_str = ", ".join(missing_tables)
+            raise RuntimeError(
+                f"database schema is inconsistent at user_version={current_version}: "
+                f"missing tables: {missing_tables_str}; automatic repair only supports "
+                f"the initial migration version {initial_version}"
+            )
         for migration_file in migration_files:
             version = _migration_version(migration_file)
             if version <= current_version:
@@ -106,6 +110,16 @@ async def _run_migrations_async(db_path: Path) -> None:
             sql = migration_file.read_text(encoding="utf-8")
             await conn.executescript(sql)
             await conn.execute(f"PRAGMA user_version = {version:d}")
+            current_version = version
+        existing_tables = await _existing_table_names(conn)
+        missing_tables = sorted(set(_required_tables()) - existing_tables)
+        if missing_tables:
+            missing_tables_str = ", ".join(missing_tables)
+            raise RuntimeError(
+                f"database schema is inconsistent at user_version={current_version}: "
+                f"missing tables: {missing_tables_str}; automatic repair only supports "
+                f"the initial migration version {initial_version}"
+            )
         await conn.commit()
 
 
