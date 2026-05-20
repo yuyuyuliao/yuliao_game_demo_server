@@ -73,7 +73,7 @@ pip install -r requirements.txt
 python -c "from app.command.database import init_db; init_db()"
 python scripts/20260307_seed_farm_data.py
 python scripts/20260520_seed_player.py
-uvicorn app.main:app --reload --port 8080
+uvicorn app.main:app --host 0.0.0.0 --port 8080 --reload
 ```
 
 如果只是体验聊天、棋类或扫雷接口，可以跳过“初始化默认数据”这一步；只有农场默认土地/作物演示需要额外执行脚本。
