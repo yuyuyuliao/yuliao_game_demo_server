@@ -32,7 +32,7 @@ pip install -r requirements.txt
 应用启动时会自动执行 `app/migrations/` 下尚未应用的 SQL 迁移脚本，因此首次启动项目时无需额外手动建表。
 
 ```bash
-uvicorn app.main:app --relo![img.png](img.png)ad
+uvicorn app.main:app --reload --port 8080
 ```
 
 如果只想单独执行迁移、不启动 FastAPI，可以直接调用仓库内的初始化入口：
@@ -70,7 +70,7 @@ python scripts/20260307_seed_farm_data.py --db-path app/data/game.db
 pip install -r requirements.txt
 python -c "from app.command.database import init_db; init_db()"
 python scripts/20260307_seed_farm_data.py
-uvicorn app.main:app --reload
+uvicorn app.main:app --reload --port 8080
 ```
 
 如果只是体验聊天、棋类或扫雷接口，可以跳过“初始化默认数据”这一步；只有农场默认土地/作物演示需要额外执行脚本。
@@ -82,7 +82,7 @@ uvicorn app.main:app --reload
 ## 运行
 
 ```bash
-uvicorn app.main:app --reload
+uvicorn app.main:app --reload --port 8080
 ```
 
 ## 项目结构
