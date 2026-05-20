@@ -54,12 +54,14 @@ python -c "from pathlib import Path; from app.command.database import init_db; i
 ```bash
 cd /path/to/yuliao_game_demo_server
 python scripts/20260307_seed_farm_data.py
+python scripts/20260520_seed_player.py
 ```
 
 脚本支持通过 `--db-path` 指定数据库文件：
 
 ```bash
 python scripts/20260307_seed_farm_data.py --db-path app/data/game.db
+python scripts/20260520_seed_player.py --db-path app/data/game.db
 ```
 
 该脚本会先确保迁移已执行，再按需写入默认数据；如果表中已有数据，则不会重复插入，可重复执行。
@@ -70,6 +72,7 @@ python scripts/20260307_seed_farm_data.py --db-path app/data/game.db
 pip install -r requirements.txt
 python -c "from app.command.database import init_db; init_db()"
 python scripts/20260307_seed_farm_data.py
+python scripts/20260520_seed_player.py
 uvicorn app.main:app --reload --port 8080
 ```
 
