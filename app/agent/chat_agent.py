@@ -25,7 +25,7 @@ AVAILABLE_TOOLS = ("player_info", "farm_info", "game_guide")
 AFFIRMATIVE_DECISION_VALUES = {"true", "1", "yes", "y", "是"}
 PLAYER_INFO_KEYWORDS = ("玩家信息", "玩家资料", "我的资料", "我的信息", "等级", "金币", "账号", "昵称")
 FARM_INFO_KEYWORDS = ("农场", "作物", "庄稼", "收成", "种植", "成熟", "可种", "可以种", "田地", "土地", "地块")
-GAME_GUIDE_KEYWORDS = ("攻略", "技巧", "建议", "怎么玩", "如何", "怎么", "帮助", "扫雷", "国际象棋", "下棋", "开局")
+GAME_GUIDE_KEYWORDS = ("攻略", "技巧", "建议", "怎么玩", "如何", "怎么", "帮助", "扫雷")
 NEGATION_PREFIXES = ("不需要", "不用", "不要", "别")
 TOOL_INPUT_FIELD_MAP = {
     "player_info": "player_id",

@@ -12,6 +12,7 @@ from app.model import BaseModel, ChatHistory, Crop, CropInstance, LandPlot, Play
 
 REPO_ROOT = Path(__file__).resolve().parents[1]
 SCRIPT_PATH = REPO_ROOT / "scripts" / "20260307_seed_farm_data.py"
+MIGRATIONS_DIR = REPO_ROOT / "app" / "migrations"
 
 
 def test_init_db_runs_migrations_only(tmp_path: Path):
@@ -64,6 +65,28 @@ def test_init_db_runs_migrations_only(tmp_path: Path):
         assert conn.execute("SELECT COUNT(*) FROM land_plots").fetchone()[0] == 0
         assert conn.execute("SELECT COUNT(*) FROM crops").fetchone()[0] == 0
         assert conn.execute("SELECT COUNT(*) FROM players").fetchone()[0] == 0
+
+
+def test_init_db_applies_new_migration_to_version_5_database(tmp_path: Path):
+    db_path = tmp_path / "version-5.db"
+
+    with sqlite3.connect(db_path) as conn:
+        for migration_file in sorted(MIGRATIONS_DIR.glob("00[1-5]_*.sql")):
+            conn.executescript(migration_file.read_text(encoding="utf-8"))
+        conn.execute("PRAGMA user_version = 5")
+        conn.commit()
+
+    init_db(db_path)
+
+    with sqlite3.connect(db_path) as conn:
+        table_names = {
+            row[0]
+            for row in conn.execute(
+                "SELECT name FROM sqlite_master WHERE type='table' AND name NOT LIKE 'sqlite_%'"
+            ).fetchall()
+        }
+        assert "player_conversation_windows" in table_names
+        assert conn.execute("PRAGMA user_version").fetchone()[0] == 6
 
 
 def test_seed_script_inserts_default_farm_data_once(tmp_path: Path):
