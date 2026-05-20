@@ -15,7 +15,7 @@ from app.prompt import (
     MINESWEEPER_SYSTEM_PROMPT,
 )
 
-MODEL_NAME = "qwen3:1.7b"
+MODEL_NAME = "qwen3:4b"
 # 扫雷获胜奖励的金币数量，可以根据实际情况调整。
 MINESWEEPER_WIN_GOLD_REWARD = 1000
 PLAYER_PUBLIC_FIELDS = ("id", "name", "account", "gold", "level")

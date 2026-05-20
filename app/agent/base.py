@@ -112,7 +112,7 @@ class AIAssistantBase(ABC):
         self,
         *,
         system_prompt: str = "",
-        model_name: str = "qwen3:1.7b",
+        model_name: str = "qwen3:4b",
         openai_client: Any | None = None,
         openai_api_key: str | None = OLLAMA_KEY,
         openai_base_url: str | None = OLLAMA_URL,

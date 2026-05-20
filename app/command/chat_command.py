@@ -16,7 +16,7 @@ ASSISTANT_HISTORY_PREFIX = "助手："
 
 chat_assistant = ChatAssistant(
     system_prompt=CHAT_SYSTEM_PROMPT,
-    model_name=os.getenv("OPENAI_CHAT_MODEL", "qwen3:1.7b"),
+    model_name=os.getenv("OPENAI_CHAT_MODEL", "qwen3:4b"),
     knowledge_search=knowledge_store.search,
     player_info_reader=read_player_info,
     farm_info_reader=read_player_farm_info,
